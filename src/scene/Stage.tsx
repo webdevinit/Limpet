@@ -68,8 +68,6 @@ export function Stage({ caps, onLoaded, intro, invalidate }: { caps: Capabilitie
       progress.current = p;
       // the canvas renders on demand: ask for a frame only when the sequence actually moved
       if (p !== lastP) { lastP = p; invalidate.current?.(); }
-      const h0 = blocks.current[0];
-      if (h0) heroLayout.current = measureHeroLayout(el, h0);
       const ts = textState(p);
       blocks.current.forEach((b, i) => {
         if (!b) return;
@@ -85,12 +83,16 @@ export function Stage({ caps, onLoaded, intro, invalidate }: { caps: Capabilitie
       if (shown !== target) raf = requestAnimationFrame(update);
       else lastT = 0;
     };
+    // the hero copy's extent only changes with the layout, so it is measured on resize / font load, not per frame
+    const measure = () => { const h0 = blocks.current[0]; if (h0) heroLayout.current = measureHeroLayout(el, h0); };
     const onScroll = () => { if (!raf) raf = requestAnimationFrame(update); };
+    const onResize = () => { measure(); onScroll(); };
+    measure();
     update(performance.now());
     window.addEventListener('scroll', onScroll, { passive: true });
-    window.addEventListener('resize', onScroll);
-    document.fonts?.ready.then(onScroll);
-    return () => { window.removeEventListener('scroll', onScroll); window.removeEventListener('resize', onScroll); if (raf) cancelAnimationFrame(raf); };
+    window.addEventListener('resize', onResize);
+    document.fonts?.ready.then(onResize);
+    return () => { window.removeEventListener('scroll', onScroll); window.removeEventListener('resize', onResize); if (raf) cancelAnimationFrame(raf); };
   }, []);
 
   const layout = { mobile: caps.mobile };

@@ -1,3 +1,4 @@
+import { useEffect, useRef } from 'react';
 import { whatItIs, craft, specs, pricing, faq, finalCta, footer, site } from '../content';
 import { Button, Lines, T } from './ui';
 import { DesktopDemo } from './DesktopDemo';
@@ -22,6 +23,15 @@ export function WhatItIs({ reduced }: { reduced: boolean }) {
 
 /** Video left, copy right. */
 export function Craft({ reduced }: { reduced: boolean }) {
+  const videoRef = useRef<HTMLVideoElement>(null);
+  // decode the loop only while it is on screen
+  useEffect(() => {
+    const v = videoRef.current;
+    if (!v) return;
+    const io = new IntersectionObserver(([e]) => { if (e.isIntersecting) v.play().catch(() => {}); else v.pause(); }, { threshold: 0.05 });
+    io.observe(v);
+    return () => io.disconnect();
+  }, [reduced]);
   return (
     <section className="section surface" id="craft">
       <div className="wrap grid-2">
@@ -29,7 +39,7 @@ export function Craft({ reduced }: { reduced: boolean }) {
           {reduced ? (
             <img src="/video/macbook-cable-poster.webp" alt="Limpet docked on a closed MacBook, with the fabric cable running to the side port" width={1280} height={720} loading="lazy" />
           ) : (
-            <video autoPlay muted loop playsInline preload="metadata" poster="/video/macbook-cable-poster.webp" width={1280} height={720}
+            <video ref={videoRef} muted loop playsInline preload="metadata" poster="/video/macbook-cable-poster.webp" width={1280} height={720}
               aria-label="Slow camera move around the Limpet docked on a closed MacBook">
               <source src="/video/macbook-cable.mp4" type="video/mp4" />
             </video>

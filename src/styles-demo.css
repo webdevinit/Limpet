@@ -55,7 +55,8 @@
 .ctx { width: 43%; background: rgba(246,246,248,.96); backdrop-filter: none; -webkit-backdrop-filter: none; }
 .ctx-item.hover.flash { background: transparent; color: #1d1d1f; }
 .ctx-item.flash:not(.hover) { background: transparent; color: #1d1d1f; }
-.desk-pointer { transition: none; will-change: left, top; }
+.desk-pointer { left: 0; top: 0; transition: none; will-change: transform; }
+.widget { backdrop-filter: none; -webkit-backdrop-filter: none; }
 @media (max-width: 860px) { .desk-scene { margin: -2% -8% 0; } }
 @media (max-width: 480px) { .desk-menubar .clock { font-size: 9px; } }
 

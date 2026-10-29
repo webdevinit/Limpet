@@ -304,8 +304,8 @@ function Models({ progress, intro, heroLayout, layout, onReady }: StageProps) {
     if (framesDrawn.current === 3) fireReady();
     // resting pose on every viewport: below the hero copy and inside the first screen. Short windows would
     // otherwise push the Limpet into the button; if copy + Limpet do not fit at all, the hero camera backs off.
-    // belt and braces: measure the hero copy ourselves if Stage has not reported it yet (or on every 30th frame)
-    if ((heroLayout.current.bottom === 0 || framesDrawn.current % 30 === 0) && typeof document !== 'undefined') {
+    // belt and braces: measure the hero copy ourselves until Stage has reported it (no layout reads per frame after that)
+    if (heroLayout.current.bottom === 0 && typeof document !== 'undefined') {
       const copy = document.querySelector<HTMLElement>('.stage .ob-top');
       const track = document.querySelector<HTMLElement>('.stage-track');
       if (copy && track) heroLayout.current = measureHeroLayout(track, copy);

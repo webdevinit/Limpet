@@ -58,6 +58,7 @@ export function DesktopDemo({ reduced }: { reduced: boolean }) {
     }, { threshold: 0.25 });
     io.observe(desk);
     let hovered = -1;
+    let deskW = 0, deskH = 0;
     let rects: { top: number; bottom: number; left: number; right: number }[] = [];
     let tx = FOLDER.x + 4, ty = FOLDER.y + 10; // last pointer position on the target item (kept after the menu closes)
     const pct = (px: number, total: number) => (px / total) * 100;
@@ -100,7 +101,9 @@ export function DesktopDemo({ reduced }: { reduced: boolean }) {
       else if (t < T.leave) { x = tx; y = ty; showBadge = t >= T.badge; }
       else { const s = ease((t - T.leave) / (T.end - T.leave)); x = lerp(tx, START.x, s); y = lerp(ty, START.y, s); showBadge = true; }
 
-      pointer.style.left = `${x}%`; pointer.style.top = `${y}%`;
+      // a transform instead of left/top: no layout of the 3D-tilted, masked desk on every frame
+      if (!deskW) { deskW = desk.offsetWidth; deskH = desk.offsetHeight; }
+      pointer.style.transform = `translate3d(${(x / 100 * deskW).toFixed(1)}px, ${(y / 100 * deskH).toFixed(1)}px, 0)`;
       menu.classList.toggle('open', menuOpen);
       if (menuOpen) {
         if (!rects.length || rects[0].top < 0) measure();
@@ -112,7 +115,7 @@ export function DesktopDemo({ reduced }: { reduced: boolean }) {
       badge.classList.toggle('show', showBadge);
       if (running) raf = requestAnimationFrame(frame);
     };
-    const onResize = () => { rects = []; };
+    const onResize = () => { rects = []; deskW = 0; deskH = 0; };
     window.addEventListener('resize', onResize);
     return () => { cancelAnimationFrame(raf); io.disconnect(); window.removeEventListener('resize', onResize); };
   }, [reduced]);
