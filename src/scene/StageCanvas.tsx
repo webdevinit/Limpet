@@ -26,6 +26,8 @@ export type StageProps = {
   onReady: () => void;
   /** optional on-screen perf readout (`?stats=1`) */
   stats?: React.MutableRefObject<HTMLPreElement | null>;
+  /** filled by the canvas: requests one frame (the stage renders on demand) */
+  invalidate: React.MutableRefObject<(() => void) | null>;
 };
 
 const DRACO = '/draco/';
@@ -53,16 +55,28 @@ export default function StageCanvas(props: StageProps) {
       dpr={[1, props.lowPower ? 1.5 : 2]}
       camera={{ fov: 30, near: 0.01, far: 10, position: [0, 0.02, 0.4] }}
       gl={{ antialias: true, alpha: true, powerPreference: 'high-performance', toneMapping: THREE.ACESFilmicToneMapping, toneMappingExposure: 0.98 }}
-      frameloop={props.active || !warm ? 'always' : 'never'}
+      frameloop={warm ? 'demand' : 'always'}
       style={{ pointerEvents: 'none' }}
     >
       <Suspense fallback={null}>
         <Studio lowPower={props.lowPower} />
         <Models {...props} onReady={onReady} />
         <AdaptiveResolution progress={props.progress} intro={props.intro} introMs={INTRO_MS} lowPower={props.lowPower} stats={props.stats} />
+        <InvalidateBridge handle={props.invalidate} />
       </Suspense>
     </Canvas>
   );
+}
+
+/** Hands the canvas's `invalidate` to the page (scroll handler, loader) so they can request frames. */
+function InvalidateBridge({ handle }: { handle: React.MutableRefObject<(() => void) | null> }) {
+  const invalidate = useThree((s) => s.invalidate);
+  useEffect(() => {
+    handle.current = () => invalidate();
+    invalidate();
+    return () => { handle.current = null; };
+  }, [invalidate, handle]);
+  return null;
 }
 
 /** Soft studio: large, blurred light sources so sandblasted metal shows broad gradients, not streaks. */
@@ -190,7 +204,7 @@ function Models({ progress, intro, heroLayout, layout, onReady }: StageProps) {
   const macStage = useMemo(() => macStageMatrix(cfg), [cfg]);
   const phoneStage = useMemo(() => phoneStageMatrix(cfg), [cfg]);
   const frame = useMemo(() => createFrame(), []);
-  const { camera, size } = useThree();
+  const { camera, size, invalidate } = useThree();
   const heroQ0 = useMemo(() => heroRestQuat(), []);
   const corners = useMemo(() => modelCorners(limpet.scene), [limpet.scene]);
   const restCam = useMemo(() => new THREE.PerspectiveCamera(30, 1, 0.01, 10), []);
@@ -198,6 +212,8 @@ function Models({ progress, intro, heroLayout, layout, onReady }: StageProps) {
   const restV = useMemo(() => new THREE.Vector3(), []);
   /** how far below its resting place the Limpet starts its float-in (m) */
   const introDrop = useRef(0.4);
+  /** true while the hero fit is still correcting by more than half a pixel (keeps on-demand frames coming) */
+  const fitSettling = useRef(false);
   const camPos = useRef(new THREE.Vector3().copy(camera.position));
   const camTarget = useRef(new THREE.Vector3());
   const introQ = useMemo(() => new THREE.Quaternion(), []);
@@ -251,6 +267,7 @@ function Models({ progress, intro, heroLayout, layout, onReady }: StageProps) {
         m.map = maps.color; m.normalMap = maps.normal; m.roughnessMap = maps.rough;
         m.color.set('#9c9ca2'); m.roughness = 0.5; m.normalScale.set(1.3, 1.3); m.sheen = 0.7; m.sheenRoughness = 0.6; m.sheenColor.set('#8c8c92'); m.envMapIntensity = 1.4; m.needsUpdate = true;
       }
+      invalidate();
     }).catch(() => {});
     return () => { cancelled = true; };
   }, [limpet, macbook, iphone, cfg, tex]);
@@ -308,8 +325,10 @@ function Models({ progress, intro, heroLayout, layout, onReady }: StageProps) {
         cfg.cams[0].pos.z = cfg.cams[1].pos.z = dist;
         const desiredTop = THREE.MathUtils.clamp(screenBottom - HERO_MAX_VISIBLE * hPx, topUnderCopy, topUnderCopy + HERO_MAX_AIR * H);
         const pxPerM = H / (2 * dist * TAN_HALF_FOV);
+        const yBefore = cfg.heroPos.y;
         cfg.heroPos.y = THREE.MathUtils.clamp(cfg.heroPos.y - (desiredTop - top) / pxPerM, -0.6, 0.1);
         introDrop.current = Math.max(0.05, (screenBottom - top) / pxPerM + 0.05);
+        fitSettling.current = Math.abs(cfg.heroPos.y - yBefore) * pxPerM > 0.5 || Math.abs(wPx - targetW) > 0.5;
         if (import.meta.env.DEV && framesDrawn.current % 30 === 0) {
           (window as unknown as { __limpetDebug?: unknown }).__limpetDebug = { hl: { ...hl }, size: { w: size.width, h: H }, dist, heroPosY: cfg.heroPos.y, top, bottom, left, right, wPx, hPx, targetW, desiredTop, introDrop: introDrop.current, limpetY: limpetRef.current?.position.y, camZ: camera.position.z };
         }
@@ -354,6 +373,11 @@ function Models({ progress, intro, heroLayout, layout, onReady }: StageProps) {
     camTarget.current.lerp(f.camTarget, k);
     camera.position.copy(camPos.current);
     camera.lookAt(camTarget.current);
+
+    // on-demand rendering: keep frames coming only while something is still in motion on its own
+    const introActive = intro.current > 0 && performance.now() - intro.current < INTRO_MS + 50;
+    const camSettling = camPos.current.distanceToSquared(f.camPos) > 1e-9 || camTarget.current.distanceToSquared(f.camTarget) > 1e-9;
+    if (introActive || camSettling || fitSettling.current) invalidate();
   });
 
   return (

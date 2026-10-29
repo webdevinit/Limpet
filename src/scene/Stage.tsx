@@ -12,7 +12,7 @@ import { emptyHeroLayout, measureHeroLayout } from './heroLayout';
 
 const StageCanvas = lazy(() => import('./StageCanvas'));
 
-export function Stage({ caps, onLoaded, intro }: { caps: Capabilities; onLoaded: () => void; intro: React.MutableRefObject<number> }) {
+export function Stage({ caps, onLoaded, intro, invalidate }: { caps: Capabilities; onLoaded: () => void; intro: React.MutableRefObject<number>; invalidate: React.MutableRefObject<(() => void) | null> }) {
   const trackRef = useRef<HTMLElement>(null);
   const progress = useRef(0);
   const blocks = useRef<(HTMLDivElement | null)[]>([]);
@@ -37,12 +37,15 @@ export function Stage({ caps, onLoaded, intro }: { caps: Capabilities; onLoaded:
     const el = trackRef.current;
     if (!el) return;
     let raf = 0;
+    let lastP = -1;
     const update = () => {
       raf = 0;
       const rect = el.getBoundingClientRect();
       const vh = window.innerHeight;
       const p = Math.min(1, Math.max(0, -rect.top / (rect.height - vh)));
       progress.current = p;
+      // the canvas renders on demand: ask for a frame only when the sequence actually moved
+      if (p !== lastP) { lastP = p; invalidate.current?.(); }
       const h0 = blocks.current[0];
       if (h0) heroLayout.current = measureHeroLayout(el, h0);
       const ts = textState(p);
@@ -73,7 +76,7 @@ export function Stage({ caps, onLoaded, intro }: { caps: Capabilities; onLoaded:
         <div className="stage-canvas" aria-hidden="true">
           {caps.webgl && (
             <Suspense fallback={null}>
-              <StageCanvas progress={progress} intro={intro} heroLayout={heroLayout} layout={layout} lowPower={caps.lowPower} active={active} onReady={onReady} stats={showStats ? statsRef : undefined} />
+              <StageCanvas progress={progress} intro={intro} heroLayout={heroLayout} layout={layout} lowPower={caps.lowPower} active={active} onReady={onReady} stats={showStats ? statsRef : undefined} invalidate={invalidate} />
             </Suspense>
           )}
         </div>

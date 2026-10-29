@@ -64,6 +64,10 @@ Scrolling up plays everything in reverse (the sequence is a pure function of pro
 
 ## Performance / fallbacks
 
+- The stage renders on demand: the scroll handler, the loader (intro start), resizes and resolution changes request frames; the frame loop keeps itself alive only while the intro, the camera damping or the hero fit are still moving. At rest nothing is rendered.
+- Adaptive resolution (`src/scene/AdaptiveResolution.tsx`): full device resolution at rest (capped at 4.5 MP), stepped down while moving when frames exceed 17.5 ms (never below 1.1 MP), restored 220 ms after the motion stops.
+- `?stats=1` shows fps, frame time, dpr, megapixels, draw calls, triangles and the frame counter over the stage.
+
 - A full-page loader (`src/components/Loader.tsx`: shell mark, Pat Pending face, "Holds on. Like a limpet.", real asset progress, min 2 s) covers the page until the models are decoded; the Limpet then glides in. three.js is a lazy chunk.
 - The "Save to Limpet" desktop loop (`src/components/DesktopDemo.tsx`) is plain HTML/CSS — menu items and timing live at the top of that file.
 - Canvas only renders while the stage is on screen; device pixel ratio is capped (1.5 on low-power devices).

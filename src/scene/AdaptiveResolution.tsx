@@ -7,7 +7,7 @@
  * again it steps back up. 220 ms after the motion stops the full resolution is restored, so the still
  * image is always crisp. Also feeds the optional on-screen stats readout (`?stats=1`).
  */
-import { useRef } from 'react';
+import { useEffect, useRef } from 'react';
 import { useFrame, useThree } from '@react-three/fiber';
 
 /** most pixels the canvas renders at rest (≈ 2560 × 1750) */
@@ -29,8 +29,9 @@ export type AdaptiveProps = {
 };
 
 export function AdaptiveResolution({ progress, intro, introMs, lowPower, stats }: AdaptiveProps) {
-  const { gl, setDpr, size } = useThree();
-  const s = useRef({ applied: 0, target: 0, ema: 16, lastP: -1, lastChange: 0, quietSince: 0, lastStats: 0, frames: 0 });
+  const { gl, setDpr, size, invalidate } = useThree();
+  const s = useRef({ applied: 0, target: 0, rest: 0, ema: 16, lastP: -1, prevMoving: false, lastChange: 0, lastStats: 0, frames: 0, restoreTimer: 0 });
+  useEffect(() => () => window.clearTimeout(s.current.restoreTimer), []);
 
   useFrame((_, dt) => {
     const st = s.current;
@@ -40,6 +41,7 @@ export function AdaptiveResolution({ progress, intro, introMs, lowPower, stats }
     const deviceDpr = Math.min(window.devicePixelRatio || 1, lowPower ? 1.5 : 2);
     const restDpr = Math.min(deviceDpr, Math.sqrt(REST_BUDGET / (w * h)));
     const floorDpr = Math.min(restDpr, Math.max(0.7, Math.sqrt(MOTION_FLOOR / (w * h))));
+    st.rest = restDpr;
     if (st.target === 0) st.target = restDpr;
 
     const p = progress.current;
@@ -47,21 +49,30 @@ export function AdaptiveResolution({ progress, intro, introMs, lowPower, stats }
     const moving = Math.abs(p - st.lastP) > 1e-5 || introActive;
     st.lastP = p;
 
-    const ms = Math.min(dt * 1000, 100);
-    st.ema += (ms - st.ema) * 0.15;
+    // frames render on demand: only the gap between two consecutive moving frames is a frame time,
+    // anything after an idle pause (or longer than 200 ms) is a gap and ignored
+    const ms = dt * 1000;
+    if (moving && st.prevMoving && ms < 200) st.ema += (ms - st.ema) * 0.15;
+    st.prevMoving = moving;
     st.frames++;
 
     if (moving) {
-      st.quietSince = now;
+      if (st.restoreTimer) { window.clearTimeout(st.restoreTimer); st.restoreTimer = 0; }
       if (st.ema > SLOW_MS && now - st.lastChange > 250 && st.target > floorDpr + 0.01) {
         st.target = Math.max(floorDpr, st.target * STEP_DOWN); st.lastChange = now; st.ema = 16;
       } else if (st.ema < FAST_MS && now - st.lastChange > 700 && st.target < restDpr - 0.01) {
         st.target = Math.min(restDpr, st.target * STEP_UP); st.lastChange = now; st.ema = 16;
       }
-    } else if (now - st.quietSince > 220 && Math.abs(st.target - restDpr) > 0.01) {
-      st.target = restDpr; st.lastChange = now;
+    } else if (!st.restoreTimer && Math.abs(st.target - restDpr) > 0.01) {
+      // back to full resolution shortly after the motion stops (and ask for the frame that shows it)
+      st.restoreTimer = window.setTimeout(() => {
+        st.restoreTimer = 0;
+        st.target = st.rest; st.lastChange = performance.now();
+        if (Math.abs(st.target - st.applied) > 0.02) { st.applied = st.target; setDpr(st.target); }
+        invalidate();
+      }, 220);
     }
-    if (Math.abs(st.target - st.applied) > 0.02) { st.applied = st.target; setDpr(st.target); }
+    if (Math.abs(st.target - st.applied) > 0.02) { st.applied = st.target; setDpr(st.target); invalidate(); }
 
     const el = stats?.current;
     if (el && now - st.lastStats > 250) {
@@ -71,7 +82,7 @@ export function AdaptiveResolution({ progress, intro, introMs, lowPower, stats }
       el.textContent =
         `${(1000 / st.ema).toFixed(0)} fps · ${st.ema.toFixed(1)} ms\n` +
         `dpr ${st.applied.toFixed(2)} (rest ${restDpr.toFixed(2)}) · ${(px / 1e6).toFixed(2)} MP\n` +
-        `${r.calls} draw calls · ${(r.triangles / 1000).toFixed(0)}k tris · ${moving ? 'moving' : 'idle'}`;
+        `${r.calls} draw calls · ${(r.triangles / 1000).toFixed(0)}k tris · ${moving ? 'moving' : 'idle'} · frame #${st.frames}`;
     }
   });
   return null;

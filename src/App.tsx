@@ -16,9 +16,11 @@ export default function App() {
   const [modelsReady, setModelsReady] = useState(false);
   const [loaderGone, setLoaderGone] = useState(false);
   const intro = useRef(0);
+  /** asks the (on-demand) WebGL stage for a frame; set by the canvas once it is mounted */
+  const invalidate = useRef<(() => void) | null>(null);
   const { progress } = useProgress();
   const onLoaded = useCallback(() => setModelsReady(true), []);
-  const onHidden = useCallback(() => { setLoaderGone(true); intro.current = performance.now(); }, []);
+  const onHidden = useCallback(() => { setLoaderGone(true); intro.current = performance.now(); invalidate.current?.(); }, []);
 
   useEffect(() => {
     if (!caps.ready || useStatic) return;
@@ -33,7 +35,7 @@ export default function App() {
       <a className="skip-link" href="#main">Skip to content</a>
       <Header />
       <main id="main">
-        {useStatic ? <StaticStage /> : <Stage caps={caps} onLoaded={onLoaded} intro={intro} />}
+        {useStatic ? <StaticStage /> : <Stage caps={caps} onLoaded={onLoaded} intro={intro} invalidate={invalidate} />}
         <WhatItIs reduced={caps.reducedMotion} />
         <Craft reduced={caps.reducedMotion} />
         <Specs />
