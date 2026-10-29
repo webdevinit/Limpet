@@ -31,6 +31,7 @@ export const R = {
   heroCenter: [0.01, 0.13],
   hero: [0.0, 0.18],
   macEnter: [0.18, 0.3],
+  lidOpen: [0.185, 0.28],  // the lid opens while the MacBook slides in, fully open before the Limpet arrives
   limpetToMac: [0.2, 0.34],
   tiltDown: [0.34, 0.4],   // right (tray) end tilts down onto the lid, the plug threads in
   settle: [0.4, 0.47],     // left end comes down while the Limpet snaps 12 mm to the right
@@ -38,6 +39,7 @@ export const R = {
   unsettle: [0.52, 0.57],
   lift: [0.57, 0.61],
   macExit: [0.57, 0.68],
+  lidClose: [0.585, 0.645], // and closes as it leaves (forwards, away from the Limpet, which has just lifted off)
   orientToPhone: [0.575, 0.66], // the Limpet starts turning into its iPhone pose the moment it lifts off
   cableSwing: [0.62, 0.7],      // the hanging cable swings towards the waiting pose while the phone settles
   limpetToPhone: [0.61, 0.76],  // one continuous curve that ends seated on the cable connector
@@ -147,6 +149,8 @@ const q90 = new THREE.Quaternion().fromArray(rigMac.hingeRotation90 as number[])
 const canonToHinge = new THREE.Matrix4().fromArray(rigMac.matrix as number[]);
 const hingeT = new THREE.Vector3().fromArray(rigMac.hingeLocalTranslation as number[]);
 export const LID_DEG = (rigMac as { lidDeg?: number }).lidDeg ?? 100;
+/** lid angle when shut (degrees, same convention as LID_DEG) */
+export const LID_CLOSED_DEG = 0;
 
 export function hingeQuaternion(lidDeg: number, out = new THREE.Quaternion()) {
   const delta = THREE.MathUtils.degToRad(90 - lidDeg);
@@ -289,6 +293,8 @@ export type Frame = {
   limpetPowered: number;
   macVisible: boolean;
   macOffset: THREE.Vector3;
+  /** MacBook lid angle (degrees): shut while it arrives and leaves, open for the dock */
+  lidDeg: number;
   phoneVisible: boolean;
   phoneOffset: THREE.Vector3;
   phoneOpacity: number;
@@ -309,6 +315,7 @@ export function createFrame(): Frame {
     limpetPowered: 0,
     macVisible: false,
     macOffset: new THREE.Vector3(),
+    lidDeg: LID_DEG,
     phoneVisible: false,
     phoneOffset: new THREE.Vector3(),
     phoneOpacity: 1,
@@ -436,6 +443,8 @@ export function evaluate(p: number, cfg: StageConfig, macStage: THREE.Matrix4, p
   const macIn = easeOut(span(p, R.macEnter));
   const macOut = easeInOut(span(p, R.macExit));
   // slides in from outside the right edge of the frame (slightly behind the stage); leaves left and into the depth
+  const lidOpen = easeInOut(span(p, R.lidOpen)) * (1 - easeInOut(span(p, R.lidClose)));
+  f.lidDeg = LID_CLOSED_DEG + (cfg.lidDeg - LID_CLOSED_DEG) * lidOpen;
   f.macOffset.set((1 - macIn) * 1.25 - macOut * 1.1, (1 - macIn) * -0.08 - macOut * 0.04, (1 - macIn) * -0.3 - macOut * 0.75);
 
   // ---- iPhone entry / recede

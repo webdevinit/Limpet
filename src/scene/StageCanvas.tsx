@@ -15,6 +15,7 @@ import { Backdrop } from './Backdrop';
 import { Cable, type CableHandle } from './Cable';
 import { DockSurface, footprintOf, RING_MS } from './DockFX';
 import { SIDES, SIDES_MIN_WIDTH, SIDES_DELAY_MS, placeSide } from './HeroSides';
+import { CableBend } from './LidBend';
 import { leatherTextures, leatherFromImage, grainTexture, fabricTexture, type LeatherMaps } from './textures';
 
 export type StageProps = {
@@ -224,6 +225,10 @@ function Models({ progress, magnet, contact, intro, heroLayout, layout, onReady 
   const leatherMats = useRef<THREE.MeshPhysicalMaterial[]>([]);
   const phoneMats = useRef<THREE.Material[]>([]);
   const hinge = useRef<THREE.Object3D | null>(null);
+  /** the flexible cable bends with the lid as it opens and closes */
+  const cableBend = useRef<CableBend | null>(null);
+  const lastLid = useRef(-1);
+  const hingeQ = useMemo(() => new THREE.Quaternion(), []);
 
   const tex = useMemo<Tex>(() => ({ leather: leatherTextures(), grain: grainTexture(), fabric: fabricTexture() }), []);
   const cfg = useMemo(() => stageConfig(layout), [layout.mobile]);
@@ -300,6 +305,14 @@ function Models({ progress, magnet, contact, intro, heroLayout, layout, onReady 
     walk(iphone.scene, phoneMats.current);
     hinge.current = macbook.scene.getObjectByName('MacBook_Display_Hinge') ?? null;
     hinge.current?.quaternion.copy(hingeQuaternion(cfg.lidDeg));
+    {
+      cableBend.current?.update(cfg.lidDeg); // back to the modelled shape before measuring it again
+      const cab = macbook.scene.getObjectByName('Cable_Flexible_Fabric') as THREE.Mesh | undefined;
+      const lidMesh = macbook.scene.getObjectByName('Display005');
+      const baseMesh = macbook.scene.getObjectByName('MacBook_BaseCover');
+      cableBend.current = cab?.isMesh && hinge.current && lidMesh && baseMesh ? new CableBend(cab, hinge.current, lidMesh, baseMesh, cfg.lidDeg) : null;
+      lastLid.current = cfg.lidDeg;
+    }
     if (import.meta.env.DEV) (window as unknown as { __limpetScene?: unknown }).__limpetScene = { limpet: limpet.scene, macbook: macbook.scene, iphone: iphone.scene, camera, phone: phoneRef.current, limpetGroup: limpetRef.current };
     // swap the procedural leather for the real grain from the handover render once it has loaded
     let cancelled = false;
@@ -410,6 +423,12 @@ function Models({ progress, magnet, contact, intro, heroLayout, layout, onReady 
       for (const m of companionMats.current) if (Math.abs(m.opacity - c.o) > 0.001) m.opacity = c.o;
     }
     if (M) { M.visible = f.macVisible; M.position.copy(f.macOffset); }
+    // lid: opens on the way in, closes on the way out (the cable bends along); only touched when the angle changes
+    if (hinge.current && f.macVisible && Math.abs(f.lidDeg - lastLid.current) > 1e-3) {
+      lastLid.current = f.lidDeg;
+      hinge.current.quaternion.copy(hingeQuaternion(f.lidDeg, hingeQ));
+      cableBend.current?.update(f.lidDeg);
+    }
     if (P) {
       P.visible = f.phoneVisible; P.position.copy(f.phoneOffset);
       const op = f.phoneOpacity;
