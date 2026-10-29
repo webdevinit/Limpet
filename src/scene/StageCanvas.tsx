@@ -7,12 +7,13 @@ import { Canvas, useFrame, useThree } from '@react-three/fiber';
 import { useGLTF, Environment, Lightformer } from '@react-three/drei';
 import * as THREE from 'three';
 import {
-  createFrame, evaluate, macStageMatrix, phoneStageMatrix, stageConfig, hingeQuaternion, companionState, companionQuat, heroRestQuat, PAIR_HALF, PAIR_DEPTH, R, type Layout, type MagnetPose,
+  createFrame, evaluate, macStageMatrix, phoneStageMatrix, stageConfig, hingeQuaternion, companionState, companionQuat, heroRestQuat, PAIR_HALF, PAIR_DEPTH, R, type Layout, type MagnetPose, dockedPose, dockProximity,
 } from './choreography';
 import { measureHeroLayout, type HeroLayout } from './heroLayout';
 import { AdaptiveResolution } from './AdaptiveResolution';
 import { Backdrop } from './Backdrop';
 import { Cable, type CableHandle } from './Cable';
+import { DockSurface, footprintOf, RING_MS } from './DockFX';
 import { leatherTextures, leatherFromImage, grainTexture, fabricTexture, type LeatherMaps } from './textures';
 
 export type StageProps = {
@@ -230,6 +231,16 @@ function Models({ progress, magnet, contact, intro, heroLayout, layout, onReady 
   const { camera, size, invalidate } = useThree();
   const heroQ0 = useMemo(() => heroRestQuat(), []);
   const corners = useMemo(() => modelCorners(limpet.scene), [limpet.scene]);
+  // experimental: contact shadow + ring of light on the dock surfaces (the leather face is the contact face on both)
+  const fx = useMemo(() => {
+    const fp = footprintOf(corners, 'bottom');
+    const pos = new THREE.Vector3(), quat = new THREE.Quaternion();
+    dockedPose('mac', cfg, macStage, phoneStage, pos, quat);
+    const mac = new DockSurface(fp, pos, quat, '#ff6935', 0.5, 0.028);
+    dockedPose('phone', cfg, macStage, phoneStage, pos, quat);
+    const phone = new DockSurface(fp, pos, quat, '#ffffff', 0.7, 0.014, fp.hx + 0.0045);
+    return { mac, phone };
+  }, [corners, cfg, macStage, phoneStage]);
   const restCam = useMemo(() => new THREE.PerspectiveCamera(30, 1, 0.01, 10), []);
   const restM = useMemo(() => new THREE.Matrix4(), []);
   const restV = useMemo(() => new THREE.Vector3(), []);
@@ -395,6 +406,10 @@ function Models({ progress, magnet, contact, intro, heroLayout, layout, onReady 
     const flash = since < CONTACT_MS ? Math.exp(-since / 110) : 0;
     if (led.current) led.current.emissiveIntensity = f.limpetPowered * 2.5 + flash * 4;
     cable.current?.update(f.connectorPos, f.connectorDir, f.connectorUp, f.phoneOpacity);
+    const prox = dockProximity(progress.current, magnet.current);
+    const ringT = (d: 'mac' | 'phone') => (contact.current.device === d && since < RING_MS ? since / RING_MS : -1);
+    fx.mac.update(f.macVisible ? prox.mac : 0, ringT('mac'), f.macVisible ? 1 : 0);
+    fx.phone.update(prox.phone, ringT('phone'), f.phoneVisible ? f.phoneOpacity : 0);
 
     const k = 1 - Math.exp(-dt * 7);
     camPos.current.lerp(f.camPos, k);
@@ -411,7 +426,7 @@ function Models({ progress, magnet, contact, intro, heroLayout, layout, onReady 
     // on-demand rendering: keep frames coming only while something is still in motion on its own
     const introActive = intro.current > 0 && performance.now() - intro.current < INTRO_MS + 50;
     const camSettling = camPos.current.distanceToSquared(f.camPos) > 1e-9 || camTarget.current.distanceToSquared(f.camTarget) > 1e-9;
-    if (introActive || camSettling || fitSettling.current || since < CONTACT_MS) invalidate();
+    if (introActive || camSettling || fitSettling.current || since < Math.max(CONTACT_MS, RING_MS)) invalidate();
   });
 
   return (
@@ -426,12 +441,14 @@ function Models({ progress, magnet, contact, intro, heroLayout, layout, onReady 
         <group ref={macInnerRef}>
           <primitive object={macbook.scene} />
         </group>
+        <primitive object={fx.mac.group} />
       </group>
       <group ref={phoneRef}>
         <group ref={phoneInnerRef}>
           <primitive object={iphone.scene} />
           <Cable handleRef={cable} />
         </group>
+        <primitive object={fx.phone.group} />
       </group>
     </>
   );

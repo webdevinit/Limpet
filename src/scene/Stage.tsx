@@ -98,7 +98,7 @@ export function Stage({ caps, onLoaded, intro, invalidate }: { caps: Capabilitie
           shown = snap.p0 + (z.dock - snap.p0) * (t / snap.pullMs);
         } else {
           const after = t - snap.pullMs;
-          if (!snap.touched) { snap.touched = true; contact.current = { at: now, device: z.device }; playDock(z.device); }
+          if (!snap.touched) { snap.touched = true; contact.current = { at: now, device: z.device }; playDock(z.device); buzz(z.device); }
           k = 1 - bump(after);
           shown = z.dock;
           const quiet = now - lock.lastInput > QUIET_MS;
@@ -284,4 +284,11 @@ function SoundLab() {
       <p>The pick is used when the Limpet docks in this browser.</p>
     </div>
   );
+}
+
+/** experimental: a tiny haptic tick at contact on phones that support it (Android; iOS browsers have no vibration) */
+function buzz(device: Device) {
+  const nav = navigator as Navigator & { userActivation?: { hasBeenActive: boolean } };
+  if (!nav.vibrate || !nav.userActivation?.hasBeenActive) return;
+  try { nav.vibrate(device === 'mac' ? 14 : 9); } catch { /* ignored */ }
 }

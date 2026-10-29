@@ -395,6 +395,23 @@ function phonePose(t: number, plug: number, phoneStage: THREE.Matrix4, outPos: T
   mP.decompose(outPos, outQuat, vS);
 }
 
+/** The Limpet's world pose when docked on a device (stage space, without the device's entry / exit offset). */
+const dockScratch = createFrame();
+export function dockedPose(device: 'mac' | 'phone', cfg: StageConfig, macStage: THREE.Matrix4, phoneStage: THREE.Matrix4, outPos: THREE.Vector3, outQuat: THREE.Quaternion) {
+  if (device === 'mac') macPose(0, 0, 0, macStage, cfg, outPos, outQuat);
+  else phonePose(1, 0, phoneStage, outPos, outQuat, dockScratch);
+}
+
+/** How close the Limpet is to each dock surface at progress p (0 away … 1 seated); drives the contact shadow. */
+export function dockProximity(p: number, mag: MagnetPose | undefined): { mac: number; phone: number } {
+  const byId = (id: MagnetId) => MAGNETS.find((z) => z.id === id)!;
+  let mac = p < R.unsettle[0] ? byId('mac-in').param(p) : byId('mac-out').param(p);
+  let phone = byId('phone-in').param(p) * (1 - smooth(span(p, [R.final[0], R.final[0] + 0.03])));
+  if (mag?.id === 'mac-in' || mag?.id === 'mac-out') mac = clamp01(mag.k);
+  if (mag?.id === 'phone-in') phone = clamp01(mag.k);
+  return { mac, phone };
+}
+
 function camAt(p: number, cfg: StageConfig, outPos: THREE.Vector3, outTarget: THREE.Vector3) {
   const cams = cfg.cams;
   let i = 0;
