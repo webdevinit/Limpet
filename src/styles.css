@@ -88,8 +88,8 @@ p { margin: 0; }
 .site-header {
   position: sticky; top: 0; z-index: 100;
   border-bottom: 1px solid #e9e9ec;
-  /* perf: no backdrop blur over the live canvas (a 20px blur pass per frame); near-opaque white instead */
-  background: rgba(255, 255, 255, .96);
+  background: rgba(255, 255, 255, .9);
+  backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px);
 }
 .site-nav {
   max-width: var(--max); margin: auto; padding: 0 var(--gutter);
