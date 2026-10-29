@@ -7,7 +7,7 @@ import { Canvas, useFrame, useThree } from '@react-three/fiber';
 import { useGLTF, Environment, Lightformer } from '@react-three/drei';
 import * as THREE from 'three';
 import {
-  createFrame, evaluate, macStageMatrix, phoneStageMatrix, stageConfig, hingeQuaternion, companionState, companionQuat, heroRestQuat, PAIR_HALF, PAIR_DEPTH, R, type Layout,
+  createFrame, evaluate, macStageMatrix, phoneStageMatrix, stageConfig, hingeQuaternion, companionState, companionQuat, heroRestQuat, PAIR_HALF, PAIR_DEPTH, R, type Layout, type MagnetPose,
 } from './choreography';
 import { measureHeroLayout, type HeroLayout } from './heroLayout';
 import { AdaptiveResolution } from './AdaptiveResolution';
@@ -17,6 +17,8 @@ import { leatherTextures, leatherFromImage, grainTexture, fabricTexture, type Le
 
 export type StageProps = {
   progress: React.MutableRefObject<number>;
+  /** pose of a running magnet snap (overrides the scroll pose of the Limpet while it pulls) */
+  magnet: React.MutableRefObject<MagnetPose>;
   /** performance.now() at which the intro (Limpet gliding in) started; 0 = not yet */
   intro: React.MutableRefObject<number>;
   /** where the hero copy ends (measured by Stage); bottom 0 = not measured yet */
@@ -196,7 +198,7 @@ function modelCorners(root: THREE.Object3D): THREE.Vector3[] {
   return c;
 }
 
-function Models({ progress, intro, heroLayout, layout, onReady }: StageProps) {
+function Models({ progress, magnet, intro, heroLayout, layout, onReady }: StageProps) {
   const limpet = useGLTF(MODELS.limpet, DRACO);
   const macbook = useGLTF(MODELS.macbook, DRACO);
   const iphone = useGLTF(MODELS.iphone, DRACO);
@@ -349,7 +351,7 @@ function Models({ progress, intro, heroLayout, layout, onReady }: StageProps) {
         }
       }
     }
-    const f = evaluate(progress.current, cfg, macStage, phoneStage, frame);
+    const f = evaluate(progress.current, cfg, macStage, phoneStage, frame, magnet.current);
     const L = limpetRef.current, M = macRef.current, P = phoneRef.current;
     if (L) {
       L.position.copy(f.limpetPos); L.quaternion.copy(f.limpetQuat);

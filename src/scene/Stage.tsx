@@ -4,7 +4,8 @@
  * models are decoded; then the Limpet glides in.
  */
 import { lazy, Suspense, useCallback, useEffect, useRef, useState } from 'react';
-import { activeScene, textState } from './choreography';
+import { activeScene, textState, MAGNETS, noMagnet, type MagnetZone } from './choreography';
+import { ScrollLock, pull, bump, pullMs, BUMP_MS, HOLD_MS, QUIET_MS, MAX_HOLD_MS } from './magnet';
 import { hero, scenes, pricing, site } from '../content';
 import { Button, Lines } from '../components/ui';
 import type { Capabilities } from '../hooks/useCapabilities';
@@ -25,6 +26,8 @@ const NO_CHASE = typeof window !== 'undefined' && new URLSearchParams(window.loc
 export function Stage({ caps, onLoaded, intro, invalidate }: { caps: Capabilities; onLoaded: () => void; intro: React.MutableRefObject<number>; invalidate: React.MutableRefObject<(() => void) | null> }) {
   const trackRef = useRef<HTMLElement>(null);
   const progress = useRef(0);
+  /** the magnet's pose while it pulls the Limpet onto a dock (read by the canvas) */
+  const magnet = useRef(noMagnet());
   const blocks = useRef<(HTMLDivElement | null)[]>([]);
   /** hero copy's bottom edge and the stage's offset from the page top (px); the canvas keeps the resting Limpet below the copy and inside the first screen */
   const heroLayout = useRef(emptyHeroLayout());
@@ -50,6 +53,24 @@ export function Stage({ caps, onLoaded, intro, invalidate }: { caps: Capabilitie
     let lastP = -1;
     let shown = -1; // progress the stage currently plays (chases the scroll position at a capped speed)
     let lastT = 0;
+    let wasLive = false;
+    const lock = new ScrollLock();
+    const armed = MAGNETS.map(() => false);
+    /** the running snap: the magnet pulls the pose from k0 to 1 on a timer, then holds the page for a moment */
+    let snap: { zone: MagnetZone; k0: number; p0: number; t0: number; pullMs: number } | null = null;
+    /** in-page navigation (anchor links): follow the scroll directly, no magnets, no speed cap */
+    let nav = { on: false, since: 0 };
+    let lastScrollAt = 0;
+    const docY = (p: number) => el.getBoundingClientRect().top + window.scrollY + p * (el.offsetHeight - window.innerHeight);
+
+    const endSnap = () => {
+      if (!snap) return;
+      shown = snap.zone.dock;
+      snap = null;
+      magnet.current = noMagnet();
+      lock.unlock();
+    };
+
     const update = (now: number) => {
       raf = 0;
       const rect = el.getBoundingClientRect();
@@ -59,15 +80,59 @@ export function Stage({ caps, onLoaded, intro, invalidate }: { caps: Capabilitie
       lastT = now;
       // off screen (or on the first measure, e.g. a restored scroll position) there is nothing to watch: jump
       const visible = rect.bottom > 0 && rect.top < vh;
-      if (shown < 0 || !visible || NO_CHASE) shown = target;
-      else {
-        const d = target - shown;
-        const step = Math.min(Math.abs(d), Math.max(Math.abs(d) * FOLLOW, 0.002) * dt, MAX_SPEED * dt);
-        shown += Math.sign(d) * step;
-        if (Math.abs(target - shown) < 1e-5) shown = target;
+      if (nav.on && ((now - nav.since > 300 && now - lastScrollAt > 300) || now - nav.since > 4000)) nav = { on: false, since: 0 };
+      // magnets only once the intro runs (the loader hides scroll restoration) and not while jumping to an anchor
+      const live = intro.current > 0 && !nav.on && !NO_CHASE;
+
+      if (snap) {
+        const t = now - snap.t0;
+        const z = snap.zone;
+        let k: number;
+        if (t < snap.pullMs) {
+          k = snap.k0 + (1 - snap.k0) * pull(t / snap.pullMs);
+          shown = snap.p0 + (z.dock - snap.p0) * (t / snap.pullMs);
+        } else {
+          const after = t - snap.pullMs;
+          k = 1 - bump(after);
+          shown = z.dock;
+          const quiet = now - lock.lastInput > QUIET_MS;
+          if ((after > BUMP_MS + HOLD_MS && quiet) || after > MAX_HOLD_MS) { endSnap(); k = 1; }
+        }
+        if (snap) { magnet.current = { id: z.id, k, contact: t >= snap.pullMs }; lock.moveTo(docY(z.dock)); }
+        invalidate.current?.();
+      } else {
+        const prev = shown;
+        if (shown < 0 || !visible || NO_CHASE || nav.on) shown = target;
+        else {
+          const d = target - shown;
+          const step = Math.min(Math.abs(d), Math.max(Math.abs(d) * FOLLOW, 0.002) * dt, MAX_SPEED * dt);
+          shown += Math.sign(d) * step;
+          if (Math.abs(target - shown) < 1e-5) shown = target;
+        }
+        // magnets: arm once the pose is clearly away from the dock, snap when it comes back past the trigger
+        const dir = Math.sign(shown - prev);
+        const entering = live && visible && !wasLive;
+        MAGNETS.forEach((z, i) => {
+          const k = z.param(shown);
+          if (k <= z.rearm) armed[i] = true;
+          if (!live || !visible || snap) return;
+          if (k < z.trigger || k >= 1) return;
+          // (re)entering live mode inside a snap window (reload mid-dock, end of an anchor jump): just be docked
+          if (entering) { armed[i] = false; shown = z.dock; lock.lock(docY(z.dock)); lock.unlock(); return; }
+          const toward = z.dock > z.far ? dir > 0 : dir < 0;
+          if (armed[i] && toward) {
+            armed[i] = false;
+            snap = { zone: z, k0: k, p0: shown, t0: now, pullMs: pullMs(z.device, k, z.trigger) };
+            magnet.current = { id: z.id, k, contact: false };
+            lock.lock(docY(z.dock));
+          }
+        });
+        wasLive = live && visible;
       }
+
       const p = shown;
       progress.current = p;
+      if (import.meta.env.DEV) (window as unknown as { __stage?: unknown }).__stage = { shown, target, snap: snap?.zone.id ?? null, k: magnet.current.k, locked: lock.locked, armed: [...armed], nav: nav.on };
       // the canvas renders on demand: ask for a frame only when the sequence actually moved
       if (p !== lastP) { lastP = p; invalidate.current?.(); }
       const ts = textState(p);
@@ -81,20 +146,37 @@ export function Stage({ caps, onLoaded, intro, invalidate }: { caps: Capabilitie
       });
       const a = activeScene(p);
       dots.current?.querySelectorAll('i').forEach((d, i) => d.classList.toggle('active', i === a));
-      // keep chasing until the sequence has caught up with the scroll position
-      if (shown !== target) raf = requestAnimationFrame(update);
+      // keep going while the magnet pulls or the sequence still chases the scroll position
+      if (snap || shown !== target) raf = requestAnimationFrame(update);
       else lastT = 0;
     };
     // the hero copy's extent only changes with the layout, so it is measured on resize / font load, not per frame
     const measure = () => { const h0 = blocks.current[0]; if (h0) heroLayout.current = measureHeroLayout(el, h0); };
-    const onScroll = () => { if (!raf) raf = requestAnimationFrame(update); };
+    const onScroll = () => { lastScrollAt = performance.now(); if (!raf) raf = requestAnimationFrame(update); };
     const onResize = () => { measure(); onScroll(); };
+    // anchor links jump through the sequence without stopping at the docks
+    const onClick = (e: MouseEvent) => {
+      const a = (e.target as Element | null)?.closest?.('a[href^="#"]');
+      if (a && a.getAttribute('href') !== '#') { endSnap(); nav = { on: true, since: performance.now() }; }
+    };
+    // a hidden tab gets no frames: finish a running snap instead of leaving the page locked
+    const onVisibility = () => { if (document.hidden) endSnap(); };
+    // the intro starting (loader fading) turns the magnets on
+    const kick = setInterval(() => { if (intro.current > 0) { clearInterval(kick); onScroll(); } }, 100);
     measure();
     update(performance.now());
     window.addEventListener('scroll', onScroll, { passive: true });
     window.addEventListener('resize', onResize);
+    document.addEventListener('click', onClick, true);
+    document.addEventListener('visibilitychange', onVisibility);
     document.fonts?.ready.then(onResize);
-    return () => { window.removeEventListener('scroll', onScroll); window.removeEventListener('resize', onResize); if (raf) cancelAnimationFrame(raf); };
+    return () => {
+      window.removeEventListener('scroll', onScroll); window.removeEventListener('resize', onResize);
+      document.removeEventListener('click', onClick, true); document.removeEventListener('visibilitychange', onVisibility);
+      clearInterval(kick);
+      if (raf) cancelAnimationFrame(raf);
+      lock.dispose();
+    };
   }, []);
 
   const layout = { mobile: caps.mobile };
@@ -105,7 +187,7 @@ export function Stage({ caps, onLoaded, intro, invalidate }: { caps: Capabilitie
         <div className="stage-canvas" aria-hidden="true">
           {caps.webgl && (
             <Suspense fallback={null}>
-              <StageCanvas progress={progress} intro={intro} heroLayout={heroLayout} layout={layout} lowPower={caps.lowPower} active={active} onReady={onReady} stats={showStats ? statsRef : undefined} invalidate={invalidate} />
+              <StageCanvas progress={progress} magnet={magnet} intro={intro} heroLayout={heroLayout} layout={layout} lowPower={caps.lowPower} active={active} onReady={onReady} stats={showStats ? statsRef : undefined} invalidate={invalidate} />
             </Suspense>
           )}
         </div>

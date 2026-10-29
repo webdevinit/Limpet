@@ -62,6 +62,50 @@ export const easeOut = (s: number) => 1 - Math.pow(1 - s, 3);
 export const easeIn = (s: number) => s * s * s;
 export const smooth = (s: number) => s * s * (3 - 2 * s);
 
+// ---------------------------------------------------------------- magnets
+/**
+ * Magnetic release (scroll-driven undocking): the shell clings for the first part of the move, then breaks free.
+ * x = 0 docked … 1 fully released; returns how far the pose has actually moved.
+ */
+export const release = (x: number) => (x < 0.4 ? 0.06 * (x / 0.4) ** 2 : 0.06 + 0.94 * easeOut((x - 0.4) / 0.6));
+/** docked end of a scroll-driven range: the inverse direction of `release` (s = 0 far … 1 docked) */
+const cling = (s: number) => 1 - release(1 - s);
+
+/** share of the MacBook approach (tilt down + settle) taken by the tilt */
+const KT = (R.tiltDown[1] - R.tiltDown[0]) / (R.settle[1] - R.tiltDown[0]);
+/** iPhone flip: how far the Limpet has swung onto the back at scroll progress p (0 under the phone … 1 on MagSafe) */
+export const flipT = (p: number) => cling(span(p, R.flip));
+
+export type MagnetId = 'mac-in' | 'mac-out' | 'phone-in';
+/**
+ * A place where the Limpet snaps on by itself. `param(p)` is the pose along the snap path for scroll progress p
+ * (0 far … 1 docked). Moving towards `dock` with the pose past `trigger`, the magnet takes over and pulls the Limpet
+ * home on a timed curve; the zone arms again only once the pose is back below `rearm` (no flutter at the threshold).
+ */
+export type MagnetZone = { id: MagnetId; device: 'mac' | 'phone'; far: number; dock: number; trigger: number; rearm: number; param: (p: number) => number };
+
+export const MAGNETS: MagnetZone[] = [
+  {
+    // forward onto the MacBook: the tray end has just started to tip onto the plate
+    id: 'mac-in', device: 'mac', far: R.tiltDown[0], dock: R.settle[1], trigger: 0.15, rearm: 0.02,
+    param: (p) => (p <= R.tiltDown[0] ? 0 : p >= R.settle[1] ? 1 : p < R.tiltDown[1] ? KT * easeInOut(span(p, R.tiltDown)) : KT + (1 - KT) * cling(span(p, R.settle))),
+  },
+  {
+    // back onto the MacBook from the iPhone side (scrolling up)
+    id: 'mac-out', device: 'mac', far: R.unsettle[1], dock: R.unsettle[0], trigger: 0.3, rearm: 0.03,
+    param: (p) => (p <= R.unsettle[0] ? 1 : p >= R.unsettle[1] ? 0 : 1 - release(span(p, R.unsettle))),
+  },
+  {
+    // onto the iPhone's MagSafe area: a third of the way through the flip
+    id: 'phone-in', device: 'phone', far: R.flip[0], dock: R.flip[1], trigger: 0.3, rearm: 0.03,
+    param: (p) => flipT(p),
+  },
+];
+
+/** A running snap: the pose `k` along the zone's path (linear, the timing comes from the magnet curve). */
+export type MagnetPose = { id: MagnetId | null; k: number; contact: boolean };
+export const noMagnet = (): MagnetPose => ({ id: null, k: 0, contact: false });
+
 export function activeScene(p: number): 0 | 1 | 2 | 3 {
   if (p < 0.18) return 0;
   if (p < 0.6) return 1;
@@ -362,7 +406,7 @@ function camAt(p: number, cfg: StageConfig, outPos: THREE.Vector3, outTarget: TH
   outTarget.lerpVectors(a.target, b.target, s);
 }
 
-export function evaluate(p: number, cfg: StageConfig, macStage: THREE.Matrix4, phoneStage: THREE.Matrix4, f: Frame): Frame {
+export function evaluate(p: number, cfg: StageConfig, macStage: THREE.Matrix4, phoneStage: THREE.Matrix4, f: Frame, mag?: MagnetPose): Frame {
   p = clamp01(p);
 
   // ---- MacBook entry / exit (from the side and the depth; backs away as soon as the Limpet lets go)
@@ -384,7 +428,23 @@ export function evaluate(p: number, cfg: StageConfig, macStage: THREE.Matrix4, p
   f.rigT = 0;
   f.limpetPowered = 0;
   let cableFollows = false; // whether the cable connector follows the Limpet (plugged) or waits in the open pose
-  if (p < R.limpetToMac[0]) {
+  if (mag?.id === 'mac-in') {
+    // magnet pull onto the MacBook: the tray end finishes tipping onto the plate, then the other end is pulled down
+    const k = clamp01(mag.k);
+    if (k < KT) { const s = k / KT; macPose(-SNAP, HOVER + (PERCH - HOVER) * s, TILT * s, macStage, cfg, f.limpetPos, f.limpetQuat); }
+    else { const s = (k - KT) / (1 - KT); macPose(-SNAP * (1 - s), PERCH * (1 - s), TILT * (1 - s), macStage, cfg, f.limpetPos, f.limpetQuat); }
+    f.limpetPowered = mag.contact ? 1 : 0;
+  } else if (mag?.id === 'mac-out') {
+    const g = 1 - clamp01(mag.k);
+    macPose(-SNAP * g, PERCH * g, TILT * g, macStage, cfg, f.limpetPos, f.limpetQuat);
+    f.limpetPowered = mag.contact ? 1 : 0;
+  } else if (mag?.id === 'phone-in') {
+    // magnet pull onto MagSafe: the Limpet swings up onto the back, faster and faster
+    f.rigT = clamp01(mag.k);
+    phonePose(f.rigT, 0, phoneStage, f.limpetPos, f.limpetQuat, f);
+    f.limpetPowered = 1;
+    cableFollows = true;
+  } else if (p < R.limpetToMac[0]) {
     heroPose(p, cfg, f.limpetPos, f.limpetQuat);
   } else if (p < R.limpetToMac[1]) {
     const s = easeInOut(span(p, R.limpetToMac));
@@ -398,17 +458,18 @@ export function evaluate(p: number, cfg: StageConfig, macStage: THREE.Matrix4, p
     const s = easeInOut(span(p, R.tiltDown));
     macPose(-SNAP, HOVER + (PERCH - HOVER) * s, TILT * s, macStage, cfg, f.limpetPos, f.limpetQuat);
   } else if (p < R.settle[1]) {
-    // other end comes down while the whole Limpet snaps right onto the plug
-    const s = easeInOut(span(p, R.settle));
+    // other end comes down while the whole Limpet snaps right onto the plug (normally the magnet does this on a timer)
+    const s = cling(span(p, R.settle));
     macPose(-SNAP * (1 - s), PERCH * (1 - s), TILT * (1 - s), macStage, cfg, f.limpetPos, f.limpetQuat);
-    f.limpetPowered = smooth(span(p, [R.settle[1] - 0.012, R.settle[1] + 0.01]));
+    f.limpetPowered = smooth(span(s, [0.9, 1]));
   } else if (p < R.unsettle[0]) {
     macPose(0, 0, 0, macStage, cfg, f.limpetPos, f.limpetQuat);
     f.limpetPowered = 1;
   } else if (p < R.unsettle[1]) {
-    const s = easeInOut(span(p, R.unsettle));
+    // undocking follows the scroll: the shell clings at first, then breaks free
+    const s = release(span(p, R.unsettle));
     macPose(-SNAP * s, PERCH * s, TILT * s, macStage, cfg, f.limpetPos, f.limpetQuat);
-    f.limpetPowered = 1 - smooth(span(p, [R.unsettle[0], R.unsettle[0] + 0.015]));
+    f.limpetPowered = 1 - smooth(span(s, [0.02, 0.1]));
   } else if (p < R.limpetToPhone[0]) {
     const s = easeOut(span(p, R.lift));
     macPose(-SNAP, PERCH + (LIFT - PERCH) * s, TILT * (1 - s), macStage, cfg, f.limpetPos, f.limpetQuat);
@@ -428,7 +489,7 @@ export function evaluate(p: number, cfg: StageConfig, macStage: THREE.Matrix4, p
     f.limpetPowered = smooth(span(p, [R.limpetToPhone[1] - 0.012, R.limpetToPhone[1]]));
     cableFollows = s >= 1;
   } else if (p < R.final[0]) {
-    f.rigT = easeInOut(span(p, R.flip));
+    f.rigT = flipT(p);
     phonePose(f.rigT, 0, phoneStage, f.limpetPos, f.limpetQuat, f);
     f.limpetPowered = 1;
     cableFollows = true;
