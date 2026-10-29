@@ -50,7 +50,9 @@
 .widget.weather .w-temp { font-size: 24px; font-weight: 300; line-height: 1.15; }
 .widget.weather .w-note { font-size: 8.5px; opacity: .92; }
 /* folders: white labels; the offloaded one gets a Limpet badge and a cloud after its name */
-.desk-folder { position: absolute; width: 12%; display: grid; justify-items: center; gap: 2px; }
+/* the icon is as wide as the folder box; a label wider than that overflows instead of widening the box */
+.desk-folder { position: absolute; width: 12%; display: grid; grid-template-columns: 100%; justify-items: center; gap: 2px; }
+.desk-folder .label { width: max-content; max-width: none; }
 .desk-folder .folder-svg { width: 100%; filter: drop-shadow(0 2px 3px rgba(0,0,0,.35)); }
 .desk-folder .label { font-size: 9.5px; font-weight: 600; color: #fff; text-shadow: 0 1px 2px rgba(0,0,0,.6); padding: 1px 5px; border-radius: 4px; text-align: center; line-height: 1.2; display: inline-flex; align-items: center; gap: 3px; white-space: nowrap; transition: background .15s; }
 .desk-folder.selected .label { background: #1f6ff0; text-shadow: none; }
