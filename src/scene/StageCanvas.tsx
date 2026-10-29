@@ -7,8 +7,9 @@ import { Canvas, useFrame, useThree } from '@react-three/fiber';
 import { useGLTF, Environment, Lightformer } from '@react-three/drei';
 import * as THREE from 'three';
 import {
-  createFrame, evaluate, macStageMatrix, phoneStageMatrix, stageConfig, hingeQuaternion, companionState, companionQuat, PAIR_HALF, PAIR_DEPTH, R, type Layout,
+  createFrame, evaluate, macStageMatrix, phoneStageMatrix, stageConfig, hingeQuaternion, companionState, companionQuat, heroRestQuat, PAIR_HALF, PAIR_DEPTH, R, type Layout,
 } from './choreography';
+import { measureHeroLayout, type HeroLayout } from './heroLayout';
 import { Cable, type CableHandle } from './Cable';
 import { leatherTextures, leatherFromImage, grainTexture, fabricTexture, type LeatherMaps } from './textures';
 
@@ -16,6 +17,8 @@ export type StageProps = {
   progress: React.MutableRefObject<number>;
   /** performance.now() at which the intro (Limpet gliding in) started; 0 = not yet */
   intro: React.MutableRefObject<number>;
+  /** where the hero copy ends (measured by Stage); bottom 0 = not measured yet */
+  heroLayout: React.MutableRefObject<HeroLayout>;
   layout: Layout;
   lowPower: boolean;
   active: boolean;
@@ -123,7 +126,44 @@ function tuneMaterial(mat: THREE.Material, tex: Tex): THREE.Material | null {
   return null;
 }
 
-function Models({ progress, intro, layout, onReady }: StageProps) {
+/* ---- resting Limpet in the hero (fitted to the measured copy every frame while the hero is on screen) ---- */
+/** gap between the hero button and the top of the Limpet (px) */
+const HERO_GAP_PX = 36;
+/** the Limpet is about this wide relative to the rendered headline ... */
+const HERO_WIDTH_OF_COPY = 0.8;
+/** ... and sits so that at most this much of it shows above the first screen's bottom edge (tall windows) ... */
+const HERO_MAX_VISIBLE = 0.55;
+/** ... but at least this much (short windows shrink it instead) */
+const HERO_MIN_VISIBLE = 0.25;
+/** the extra air between button and Limpet never grows beyond this share of the viewport height (tall windows) */
+const HERO_MAX_AIR = 0.2;
+/** on phones the headline is narrow, so the Limpet is sized against the viewport instead */
+const HERO_WIDTH_OF_PHONE = 0.68;
+/** the float-in from below the screen edge after the loader (ms) */
+const INTRO_MS = 2600;
+const TAN_HALF_FOV = Math.tan(THREE.MathUtils.degToRad(15));
+const ONE = new THREE.Vector3(1, 1, 1);
+
+/** the eight corners of a loaded model's bounding box, in the model's own space */
+function modelCorners(root: THREE.Object3D): THREE.Vector3[] {
+  root.updateMatrixWorld(true);
+  const inv = new THREE.Matrix4().copy(root.matrixWorld).invert();
+  const rel = new THREE.Matrix4();
+  const box = new THREE.Box3();
+  const b = new THREE.Box3();
+  root.traverse((o) => {
+    const mesh = o as THREE.Mesh;
+    if (!mesh.isMesh) return;
+    if (!mesh.geometry.boundingBox) mesh.geometry.computeBoundingBox();
+    b.copy(mesh.geometry.boundingBox!).applyMatrix4(rel.multiplyMatrices(inv, mesh.matrixWorld));
+    box.union(b);
+  });
+  const c: THREE.Vector3[] = [];
+  for (let i = 0; i < 8; i++) c.push(new THREE.Vector3(i & 1 ? box.max.x : box.min.x, i & 2 ? box.max.y : box.min.y, i & 4 ? box.max.z : box.min.z));
+  return c;
+}
+
+function Models({ progress, intro, heroLayout, layout, onReady }: StageProps) {
   const limpet = useGLTF(MODELS.limpet, DRACO);
   const macbook = useGLTF(MODELS.macbook, DRACO);
   const iphone = useGLTF(MODELS.iphone, DRACO);
@@ -146,7 +186,14 @@ function Models({ progress, intro, layout, onReady }: StageProps) {
   const macStage = useMemo(() => macStageMatrix(cfg), [cfg]);
   const phoneStage = useMemo(() => phoneStageMatrix(cfg), [cfg]);
   const frame = useMemo(() => createFrame(), []);
-  const { camera } = useThree();
+  const { camera, size } = useThree();
+  const heroQ0 = useMemo(() => heroRestQuat(), []);
+  const corners = useMemo(() => modelCorners(limpet.scene), [limpet.scene]);
+  const restCam = useMemo(() => new THREE.PerspectiveCamera(30, 1, 0.01, 10), []);
+  const restM = useMemo(() => new THREE.Matrix4(), []);
+  const restV = useMemo(() => new THREE.Vector3(), []);
+  /** how far below its resting place the Limpet starts its float-in (m) */
+  const introDrop = useRef(0.4);
   const camPos = useRef(new THREE.Vector3().copy(camera.position));
   const camTarget = useRef(new THREE.Vector3());
   const introQ = useMemo(() => new THREE.Quaternion(), []);
@@ -217,17 +264,63 @@ function Models({ progress, intro, layout, onReady }: StageProps) {
   // fallback: if frames cannot be drawn for a while (heavy paints elsewhere), release the loader anyway
   useEffect(() => { const t = setTimeout(fireReady, 2500); return () => clearTimeout(t); }, []);
   useFrame((_, dt) => {
-    if (framesDrawn.current < 3) { framesDrawn.current++; if (framesDrawn.current === 3) fireReady(); }
+    framesDrawn.current++;
+    if (framesDrawn.current === 3) fireReady();
+    // resting pose on every viewport: below the hero copy and inside the first screen. Short windows would
+    // otherwise push the Limpet into the button; if copy + Limpet do not fit at all, the hero camera backs off.
+    // belt and braces: measure the hero copy ourselves if Stage has not reported it yet (or on every 30th frame)
+    if ((heroLayout.current.bottom === 0 || framesDrawn.current % 30 === 0) && typeof document !== 'undefined') {
+      const copy = document.querySelector<HTMLElement>('.stage .ob-top');
+      const track = document.querySelector<HTMLElement>('.stage-track');
+      if (copy && track) heroLayout.current = measureHeroLayout(track, copy);
+    }
+    // resting pose: project the Limpet's box through the hero camera and fit it to the copy: about 80 % of the
+    // headline's width, top just under the button, the lower part below the first screen's bottom edge.
+    // Camera distance and height are corrected a little every frame, so any viewport converges within a few frames.
+    const hl = heroLayout.current;
+    if (hl.bottom > 0 && hl.width > 0 && size.height > 0 && progress.current < R.hero[1]) {
+      const H = size.height;
+      let dist = cfg.cams[0].pos.z;
+      restCam.aspect = size.width / H;
+      restCam.updateProjectionMatrix();
+      restCam.position.set(0, 0.02, dist);
+      restCam.lookAt(0, cfg.heroCamY, 0);
+      restCam.updateMatrixWorld();
+      restM.compose(restV.set(0, cfg.heroPos.y, 0), heroQ0, ONE);
+      let top = Infinity, bottom = -Infinity, left = Infinity, right = -Infinity;
+      for (const c of corners) {
+        restV.copy(c).applyMatrix4(restM).project(restCam);
+        const x = (restV.x + 1) / 2 * size.width, y = (1 - restV.y) / 2 * H;
+        top = Math.min(top, y); bottom = Math.max(bottom, y); left = Math.min(left, x); right = Math.max(right, x);
+      }
+      const wPx = right - left, hPx = bottom - top;
+      const screenBottom = H - hl.stageTop; // first screen's bottom edge, in stage px
+      const topUnderCopy = hl.bottom + HERO_GAP_PX;
+      if (wPx > 1 && hPx > 1) {
+        const maxH = Math.max(40, screenBottom - topUnderCopy) / HERO_MIN_VISIBLE;
+        const wantW = Math.max(HERO_WIDTH_OF_COPY * hl.width, layout.mobile ? HERO_WIDTH_OF_PHONE * size.width : 0);
+        const targetW = Math.min(wantW, maxH * (wPx / hPx));
+        dist = THREE.MathUtils.clamp(dist * (wPx / targetW), 0.09, cfg.heroCamDist);
+        cfg.cams[0].pos.z = cfg.cams[1].pos.z = dist;
+        const desiredTop = THREE.MathUtils.clamp(screenBottom - HERO_MAX_VISIBLE * hPx, topUnderCopy, topUnderCopy + HERO_MAX_AIR * H);
+        const pxPerM = H / (2 * dist * TAN_HALF_FOV);
+        cfg.heroPos.y = THREE.MathUtils.clamp(cfg.heroPos.y - (desiredTop - top) / pxPerM, -0.6, 0.1);
+        introDrop.current = Math.max(0.05, (screenBottom - top) / pxPerM + 0.05);
+        if (import.meta.env.DEV && framesDrawn.current % 30 === 0) {
+          (window as unknown as { __limpetDebug?: unknown }).__limpetDebug = { hl: { ...hl }, size: { w: size.width, h: H }, dist, heroPosY: cfg.heroPos.y, top, bottom, left, right, wPx, hPx, targetW, desiredTop, introDrop: introDrop.current, limpetY: limpetRef.current?.position.y, camZ: camera.position.z };
+        }
+      }
+    }
     const f = evaluate(progress.current, cfg, macStage, phoneStage, frame);
     const L = limpetRef.current, M = macRef.current, P = phoneRef.current;
     if (L) {
       L.position.copy(f.limpetPos); L.quaternion.copy(f.limpetQuat);
       if (intro.current > 0 && progress.current < R.hero[1]) {
-        const e = Math.min(1, (performance.now() - intro.current) / 1600);
-        const k = 1 - Math.pow(1 - e, 3);
-        L.position.x += (1 - k) * 0.45;
-        L.position.y += (1 - k) * -0.02;
-        introQ.setFromAxisAngle(yAxis, (1 - k) * -1.4);
+        // floats up from below the screen edge once the loader is gone, slow and smooth, turning gently as it settles
+        const e = Math.min(1, (performance.now() - intro.current) / INTRO_MS);
+        const k = 1 - Math.pow(1 - e, 4);
+        L.position.y += (1 - k) * -introDrop.current;
+        introQ.setFromAxisAngle(yAxis, (1 - k) * -0.45);
         L.quaternion.premultiply(introQ);
       }
     }

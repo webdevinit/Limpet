@@ -66,7 +66,6 @@ export const hero = {
   headline: 'Feels built in.', // (existing site)
   sub: 'Limpet extends your laptop.\nMore room for your apps, projects and ideas.', // (existing site)
   cta: 'Pre-order your Limpet', // (existing site)
-  note: 'Not final iteration, subject to change.', // (existing site)
 };
 
 export const scenes = {

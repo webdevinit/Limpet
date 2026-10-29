@@ -25,6 +25,8 @@ import rigMac from './rig-macbook.json';
 export type Layout = { mobile: boolean };
 
 export const R = {
+  /** as the title fades, the Limpet moves from under the hero copy to the centre of the frame while the camera closes in */
+  heroCenter: [0.01, 0.13],
   hero: [0.0, 0.18],
   macEnter: [0.18, 0.3],
   limpetToMac: [0.2, 0.34],
@@ -75,7 +77,7 @@ export function textState(p: number): { o: number; y: number }[] {
     return { o: v, y: (1 - i) * 18 + (1 - o) * -18 };
   };
   return [
-    fade(-1, -0.5, 0.12, 0.18),
+    fade(-1, -0.5, 0.01, 0.07),
     fade(0.27, 0.33, 0.55, 0.6),
     fade(0.74, 0.79, 0.9, 0.93),
     fade(0.95, 0.985, 2, 3),
@@ -104,7 +106,12 @@ export function hingeQuaternion(lidDeg: number, out = new THREE.Quaternion()) {
 }
 
 export type StageConfig = {
+  /** resting position under the hero copy; y is fitted at runtime to the measured copy (see StageCanvas) */
   heroPos: THREE.Vector3;
+  heroCamY: number;
+  /** farthest the hero camera goes while resting (the fit brings it much closer) */
+  heroCamDist: number;
+  heroCenter: THREE.Vector3;
   finalPos: THREE.Vector3;
   macYaw: number;
   macDockPoint: THREE.Vector3;
@@ -132,7 +139,10 @@ export function stageConfig(layout: Layout): StageConfig {
   });
   return {
     // hero copy sits centred at the top of the viewport, the Limpet underneath it
-    heroPos: new THREE.Vector3(0, (m ? -0.118 : -0.075) + yo, 0),
+    heroPos: new THREE.Vector3(0, -0.06 + yo, 0),
+    heroCamY: -0.01 + yo + ty,
+    heroCamDist: 0.55 * dist,
+    heroCenter: new THREE.Vector3(0, 0.0 + yo + ty, 0),
     finalPos: new THREE.Vector3(PAIR_HALF, 0.06 + yo, 0),
     macYaw: Math.PI - 0.95,
     macDockPoint: new THREE.Vector3(0.13 * xo, 0.0 + yo, 0.03),
@@ -141,7 +151,8 @@ export function stageConfig(layout: Layout): StageConfig {
     lidDeg: LID_DEG,
     cams: [
       cam(0.0, [0, 0.02, 0.55], [0, -0.01, 0]),
-      cam(0.15, [0, 0.02, 0.55], [0, -0.01, 0]),
+      cam(0.01, [0, 0.02, 0.55], [0, -0.01, 0]),
+      cam(0.14, [0, 0.0, 0.37], [0, -0.01, 0]),
       cam(0.28, [0.0, 0.12, 0.7], [0.07, 0.05, 0], 1.25),
       cam(0.58, [0.03, 0.11, 0.66], [0.07, 0.05, 0], 1.25),
       cam(0.72, [0.0, 0.13, 0.64], [0.04, 0.0, 0], 1.12),
@@ -278,11 +289,17 @@ const mP = new THREE.Matrix4();
 const one = new THREE.Vector3(1, 1, 1);
 const heroTilt = new THREE.Quaternion().setFromAxisAngle(X, THREE.MathUtils.degToRad(80));
 
+/** the resting Limpet faces the camera almost squarely, then turns ~330 degrees over the hero range */
+const HERO_YAW0 = -0.3;
+export function heroRestQuat(out = new THREE.Quaternion()) {
+  return out.setFromAxisAngle(Y, HERO_YAW0).multiply(heroTilt);
+}
+
 function heroPose(p: number, cfg: StageConfig, outPos: THREE.Vector3, outQuat: THREE.Quaternion) {
   const s = span(p, R.hero);
-  const yaw = -0.55 + s * Math.PI * 2 * 0.92;
+  const yaw = HERO_YAW0 + s * Math.PI * 2 * 0.92;
   outQuat.setFromAxisAngle(Y, yaw).multiply(heroTilt);
-  outPos.copy(cfg.heroPos);
+  outPos.copy(cfg.heroPos).lerp(cfg.heroCenter, smooth(span(p, R.heroCenter)));
   outPos.y += Math.sin(s * Math.PI * 2) * 0.004;
 }
 

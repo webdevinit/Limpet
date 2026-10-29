@@ -8,6 +8,7 @@ import { activeScene, textState } from './choreography';
 import { hero, scenes, pricing, site } from '../content';
 import { Button, Lines } from '../components/ui';
 import type { Capabilities } from '../hooks/useCapabilities';
+import { emptyHeroLayout, measureHeroLayout } from './heroLayout';
 
 const StageCanvas = lazy(() => import('./StageCanvas'));
 
@@ -15,6 +16,8 @@ export function Stage({ caps, onLoaded, intro }: { caps: Capabilities; onLoaded:
   const trackRef = useRef<HTMLElement>(null);
   const progress = useRef(0);
   const blocks = useRef<(HTMLDivElement | null)[]>([]);
+  /** hero copy's bottom edge and the stage's offset from the page top (px); the canvas keeps the resting Limpet below the copy and inside the first screen */
+  const heroLayout = useRef(emptyHeroLayout());
   const dots = useRef<HTMLDivElement>(null);
   const [active, setActive] = useState(true);
   const onReady = useCallback(() => onLoaded(), [onLoaded]);
@@ -37,6 +40,8 @@ export function Stage({ caps, onLoaded, intro }: { caps: Capabilities; onLoaded:
       const vh = window.innerHeight;
       const p = Math.min(1, Math.max(0, -rect.top / (rect.height - vh)));
       progress.current = p;
+      const h0 = blocks.current[0];
+      if (h0) heroLayout.current = measureHeroLayout(el, h0);
       const ts = textState(p);
       blocks.current.forEach((b, i) => {
         if (!b) return;
@@ -53,6 +58,7 @@ export function Stage({ caps, onLoaded, intro }: { caps: Capabilities; onLoaded:
     update();
     window.addEventListener('scroll', onScroll, { passive: true });
     window.addEventListener('resize', onScroll);
+    document.fonts?.ready.then(onScroll);
     return () => { window.removeEventListener('scroll', onScroll); window.removeEventListener('resize', onScroll); if (raf) cancelAnimationFrame(raf); };
   }, []);
 
@@ -64,7 +70,7 @@ export function Stage({ caps, onLoaded, intro }: { caps: Capabilities; onLoaded:
         <div className="stage-canvas" aria-hidden="true">
           {caps.webgl && (
             <Suspense fallback={null}>
-              <StageCanvas progress={progress} intro={intro} layout={layout} lowPower={caps.lowPower} active={active} onReady={onReady} />
+              <StageCanvas progress={progress} intro={intro} heroLayout={heroLayout} layout={layout} lowPower={caps.lowPower} active={active} onReady={onReady} />
             </Suspense>
           )}
         </div>
@@ -77,7 +83,6 @@ export function Stage({ caps, onLoaded, intro }: { caps: Capabilities; onLoaded:
             <div className="cta-row">
               <Button href={site.links.preorder}>{hero.cta}</Button>
             </div>
-            <p className="note">{hero.note}</p>
           </OverlayBlock>
 
           {/* 2 · MacBook */}

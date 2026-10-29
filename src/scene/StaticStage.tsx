@@ -19,7 +19,6 @@ export function StaticStage() {
         <h1 className="h-display">{hero.headline}</h1>
         <p className="lead"><Lines text={hero.sub} /></p>
         <Button href={site.links.preorder}>{hero.cta}</Button>
-        <p className="note">{hero.note}</p>
         <Img name="limpet-hero" alt="Limpet aluminium SSD, front view" w={900} h={1600} />
       </div>
       <div className="static-scene" id="how-it-docks">

@@ -30,7 +30,7 @@ Anything wrapped in `TBD('…')` in `src/content.ts` renders with a dashed orang
 - Copy marked `(existing site)` in `src/content.ts` is taken word for word from patpending.com; everything else is written in the same voice (short lines, plain words, full stops). Keep new copy that short.
 - One type scale for the whole page (`src/styles.css`): display headline up to 96 px, section headlines up to 64 px, lead 18 px on a 350 px measure, detail 14 px, notes 13 px. No eyebrows, one button size.
 - Header mirrors the existing site: Limpet brand left, Pat Pending face centred, bag + Pre-order right (`src/components/Header.tsx`).
-- Hero copy is centred at the top of the stage with the Limpet underneath (`heroPos` and the first two camera keys in `src/scene/choreography.ts`); the MacBook and iPhone scenes keep the copy left, the product right; the final scene is centred at the bottom.
+- Hero copy is centred at the top of the stage. The resting Limpet is fitted to the measured copy every frame (`src/scene/StageCanvas.tsx`, `src/scene/heroLayout.ts`): about 80 % as wide as the headline (68 % of the viewport on phones), its top 36 px under the button, the lower part below the first screen's edge; the hero camera distance and height follow from that, so every viewport works. It floats in from below the screen edge after the loader (2.6 s). The MacBook and iPhone scenes keep the copy left, the product right; the final scene is centred at the bottom.
 
 ## Models
 
@@ -52,7 +52,7 @@ The iPhone cable is drawn procedurally (`src/scene/Cable.tsx`, 6.5 × 0.8 mm rib
 
 | Range | What happens |
 | --- | --- |
-| 0.00 – 0.18 | Limpet alone under the centred hero copy, turns ~330° with the scroll |
+| 0.00 – 0.18 | Limpet alone: big under the hero copy at rest; as soon as scrolling starts the title fades (0.01–0.07) and the Limpet rises to the centre while the camera pulls back (0.01–0.14), turning ~330° over the range |
 | 0.18 – 0.34 | MacBook floats in from the side/depth; Limpet moves above the lid, left of the dock plate |
 | 0.34 – 0.47 | Tray end tilts down onto the lid (the dock's USB-C plug threads in), then the other end comes down while the Limpet snaps 12 mm right (LED turns on) |
 | 0.52 – 0.72 | Reverse: snaps left, tilts up, lifts 2 cm off the plate; the MacBook backs away (left and into the depth) as soon as the Limpet lets go, the Limpet turns into its iPhone pose right away and travels in a straight line to the waiting cable |
