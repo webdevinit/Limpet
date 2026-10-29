@@ -6,7 +6,7 @@
 import { lazy, Suspense, useCallback, useEffect, useRef, useState } from 'react';
 import { activeScene, textState, MAGNETS, noMagnet, type MagnetZone } from './choreography';
 import { ScrollLock, pull, bump, pullMs, BUMP_MS, HOLD_MS, QUIET_MS, MAX_HOLD_MS } from './magnet';
-import { installAudioUnlock, playDock, soundEnabled, setSoundEnabled, onSoundChange, type Device } from './sound';
+import { installAudioUnlock, playDock, soundEnabled, soundReady, setSoundEnabled, enableAndConfirm, onSoundChange, type Device } from './sound';
 import { hero, scenes, pricing, site } from '../content';
 import { Button, Lines } from '../components/ui';
 import type { Capabilities } from '../hooks/useCapabilities';
@@ -244,16 +244,33 @@ function OverlayBlock({ children, className, refCb, id }: { children: React.Reac
   );
 }
 
-/** Speaker button on the stage: the docking sounds on / off (remembered per browser). */
+/**
+ * Speaker button on the stage: the docking sounds on / off (remembered per browser). Until the browser allows audio
+ * (no click or tap yet; scrolling does not count) it shows a small "Sound" label, so a visitor knows a click turns it on.
+ */
 function SoundToggle() {
-  const [on, setOn] = useState(soundEnabled);
-  useEffect(() => onSoundChange(setOn), []);
+  const [state, setState] = useState(() => ({ on: soundEnabled(), ready: soundReady() }));
+  useEffect(() => onSoundChange(() => setState({ on: soundEnabled(), ready: soundReady() })), []);
+  const { on, ready } = state;
+  // the label stays a moment after audio unlocks: the press on the pill itself unlocks it, and the pill must not
+  // shrink away under the pointer before the click lands (that click plays the confirming blopp)
+  const [invite, setInvite] = useState(on && !ready);
+  useEffect(() => {
+    if (on && !ready) { setInvite(true); return; }
+    const t = setTimeout(() => setInvite(false), 700);
+    return () => clearTimeout(t);
+  }, [on, ready]);
+  const label = invite ? 'Turn on docking sounds' : on ? 'Mute docking sounds' : 'Play docking sounds';
   return (
-    <button type="button" className="stage-sound" aria-pressed={on} aria-label={on ? 'Mute docking sounds' : 'Play docking sounds'} title={on ? 'Sound on' : 'Sound off'} onClick={() => setSoundEnabled(!on)}>
+    <button
+      type="button" className={`stage-sound${invite ? ' invite' : ''}`} aria-pressed={on && ready} aria-label={label} title={label}
+      onClick={() => (invite || !on ? enableAndConfirm() : setSoundEnabled(false))}
+    >
       <svg viewBox="0 0 20 20" width="16" height="16" aria-hidden="true" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round">
         <path d="M3.5 7.5h3l4-3.5v12l-4-3.5h-3z" fill="currentColor" stroke="none" />
-        {on ? (<><path d="M13.5 7.2a3.6 3.6 0 0 1 0 5.6" /><path d="M15.6 5a6.6 6.6 0 0 1 0 10" /></>) : (<><path d="M13.5 7.5l5 5" /><path d="M18.5 7.5l-5 5" /></>)}
+        {on && ready ? (<><path d="M13.5 7.2a3.6 3.6 0 0 1 0 5.6" /><path d="M15.6 5a6.6 6.6 0 0 1 0 10" /></>) : (<><path d="M13.5 7.5l5 5" /><path d="M18.5 7.5l-5 5" /></>)}
       </svg>
+      {invite && <span>Sound</span>}
     </button>
   );
 }

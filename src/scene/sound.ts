@@ -2,8 +2,8 @@
  * Docking sounds, synthesised with Web Audio (no files, no licences, tunable here).
  *
  * Browsers only start audio after a real interaction (click, tap, key press; scrolling with a wheel does not count),
- * so the context is created on the first such gesture. Until then a dock is silent. The visitor's choice
- * (sound on / off) is remembered per browser.
+ * so the context is created on the first such gesture. Until then a dock is silent, and the speaker button on the
+ * stage invites a click (`soundReady()` is false). The visitor's choice (sound on / off) is remembered per browser.
  */
 
 export type Device = 'mac' | 'phone';
@@ -18,10 +18,17 @@ let ctx: AudioContext | null = null;
 let master: GainNode | null = null;
 let noiseBuf: AudioBuffer | null = null;
 let enabled = read(PREF) !== 'off';
-const listeners = new Set<(on: boolean) => void>();
+/** true once the browser actually lets the context play */
+let ready = false;
+const listeners = new Set<() => void>();
+const notify = () => listeners.forEach((l) => l());
+const setReady = (r: boolean) => { if (r !== ready) { ready = r; notify(); } };
 
 function ensureContext() {
-  if (ctx) { if (ctx.state === 'suspended') ctx.resume().catch(() => {}); return; }
+  if (ctx) {
+    if (ctx.state !== 'running') ctx.resume().then(() => setReady(ctx!.state === 'running')).catch(() => {});
+    return;
+  }
   const AC = window.AudioContext ?? (window as unknown as { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
   if (!AC) return;
   ctx = new AC();
@@ -31,31 +38,36 @@ function ensureContext() {
   noiseBuf = ctx.createBuffer(1, Math.floor(ctx.sampleRate * 0.05), ctx.sampleRate);
   const d = noiseBuf.getChannelData(0);
   for (let i = 0; i < d.length; i++) d[i] = Math.random() * 2 - 1;
+  // the context may start suspended (Safari) or be suspended later (phone calls, background tabs on iOS)
+  ctx.onstatechange = () => setReady(ctx!.state === 'running');
+  setReady(ctx.state === 'running');
+  if (ctx.state !== 'running') ctx.resume().then(() => setReady(ctx!.state === 'running')).catch(() => {});
 }
 
-/** call once: unlocks audio on the visitor's first real interaction */
+/**
+ * call once: unlocks audio on any real interaction. Every event browsers accept as a gesture is watched, and the
+ * listeners stay, so a context that gets suspended later (iOS) comes back with the next tap.
+ */
+let unlockInstalled = false;
 export function installAudioUnlock() {
-  const unlock = () => {
-    ensureContext();
-    if (ctx?.state === 'running') {
-      window.removeEventListener('pointerdown', unlock, true);
-      window.removeEventListener('keydown', unlock, true);
-      window.removeEventListener('touchend', unlock, true);
-    }
-  };
-  window.addEventListener('pointerdown', unlock, true);
-  window.addEventListener('keydown', unlock, true);
-  window.addEventListener('touchend', unlock, true);
+  if (unlockInstalled) return;
+  unlockInstalled = true;
+  const unlock = () => { if (!ctx || ctx.state !== 'running') ensureContext(); };
+  for (const type of ['pointerdown', 'pointerup', 'mousedown', 'click', 'touchstart', 'touchend', 'keydown']) {
+    window.addEventListener(type, unlock, { capture: true, passive: true });
+  }
 }
 
 export const soundEnabled = () => enabled;
+export const soundReady = () => ready;
 export function setSoundEnabled(on: boolean) {
   enabled = on;
   write(PREF, on ? 'on' : 'off');
   if (on) ensureContext();
-  listeners.forEach((l) => l(on));
+  notify();
 }
-export function onSoundChange(l: (on: boolean) => void) { listeners.add(l); return () => { listeners.delete(l); }; }
+/** called whenever the visitor's choice or the browser's audio permission changes */
+export function onSoundChange(l: () => void) { listeners.add(l); return () => { listeners.delete(l); }; }
 
 // ---------------------------------------------------------------- synthesis
 /** a pitched blip: frequency glides from f0 to f1, sharp attack, exponential decay */
@@ -101,4 +113,11 @@ const SYNTHS: Record<Device, (t: number) => void> = {
 export function playDock(device: Device) {
   if (!enabled || !ctx || !master || ctx.state !== 'running') return;
   SYNTHS[device](ctx.currentTime + 0.005);
+}
+
+/** turning the sound on from the button: unlock (the click is the gesture) and confirm with a quiet blopp */
+export function enableAndConfirm() {
+  setSoundEnabled(true);
+  const go = () => playDock('mac');
+  if (ctx?.state === 'running') go(); else ctx?.resume().then(go).catch(() => {});
 }

@@ -148,6 +148,11 @@ p { margin: 0; }
 .stage-sound:hover { color: var(--ink); background: rgba(29,29,31,.05); }
 .stage-sound:focus-visible { outline: 2px solid var(--orange); outline-offset: 2px; }
 .stage-sound[aria-pressed='false'] { opacity: .7; }
+/* until the browser allows audio: a small labelled pill, so a click is the obvious way to hear the docks */
+.stage-sound.invite { width: auto; height: 32px; padding: 0 12px 0 10px; gap: 6px; display: inline-flex; align-items: center;
+  border-radius: 999px; border: 1px solid #d9d9de; background: rgba(255,255,255,.85); color: var(--ink); opacity: 1;
+  font-family: inherit; font-size: 12px; font-weight: 600; line-height: 1; letter-spacing: -0.01em; }
+.stage-sound.invite:hover { background: #fff; border-color: #c4c4ca; }
 
 /* overlay copy: real HTML, absolutely positioned, faded by scroll */
 .overlay { position: absolute; inset: 0; pointer-events: none; z-index: 2; }
