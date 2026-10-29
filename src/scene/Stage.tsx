@@ -18,6 +18,9 @@ export function Stage({ caps, onLoaded, intro }: { caps: Capabilities; onLoaded:
   const blocks = useRef<(HTMLDivElement | null)[]>([]);
   /** hero copy's bottom edge and the stage's offset from the page top (px); the canvas keeps the resting Limpet below the copy and inside the first screen */
   const heroLayout = useRef(emptyHeroLayout());
+  // `?stats=1` shows fps, resolution and draw calls over the stage (used to compare the perf steps)
+  const statsRef = useRef<HTMLPreElement | null>(null);
+  const showStats = typeof window !== 'undefined' && new URLSearchParams(window.location.search).has('stats');
   const dots = useRef<HTMLDivElement>(null);
   const [active, setActive] = useState(true);
   const onReady = useCallback(() => onLoaded(), [onLoaded]);
@@ -70,7 +73,7 @@ export function Stage({ caps, onLoaded, intro }: { caps: Capabilities; onLoaded:
         <div className="stage-canvas" aria-hidden="true">
           {caps.webgl && (
             <Suspense fallback={null}>
-              <StageCanvas progress={progress} intro={intro} heroLayout={heroLayout} layout={layout} lowPower={caps.lowPower} active={active} onReady={onReady} />
+              <StageCanvas progress={progress} intro={intro} heroLayout={heroLayout} layout={layout} lowPower={caps.lowPower} active={active} onReady={onReady} stats={showStats ? statsRef : undefined} />
             </Suspense>
           )}
         </div>
@@ -111,6 +114,7 @@ export function Stage({ caps, onLoaded, intro }: { caps: Capabilities; onLoaded:
         </div>
 
         <div className="stage-progress" ref={dots} aria-hidden="true"><i className="active" /><i /><i /><i /></div>
+        {showStats && <pre className="stage-stats" ref={statsRef} aria-hidden="true" />}
       </div>
     </section>
   );

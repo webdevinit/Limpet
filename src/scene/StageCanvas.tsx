@@ -10,6 +10,7 @@ import {
   createFrame, evaluate, macStageMatrix, phoneStageMatrix, stageConfig, hingeQuaternion, companionState, companionQuat, heroRestQuat, PAIR_HALF, PAIR_DEPTH, R, type Layout,
 } from './choreography';
 import { measureHeroLayout, type HeroLayout } from './heroLayout';
+import { AdaptiveResolution } from './AdaptiveResolution';
 import { Cable, type CableHandle } from './Cable';
 import { leatherTextures, leatherFromImage, grainTexture, fabricTexture, type LeatherMaps } from './textures';
 
@@ -23,6 +24,8 @@ export type StageProps = {
   lowPower: boolean;
   active: boolean;
   onReady: () => void;
+  /** optional on-screen perf readout (`?stats=1`) */
+  stats?: React.MutableRefObject<HTMLPreElement | null>;
 };
 
 const DRACO = '/draco/';
@@ -56,6 +59,7 @@ export default function StageCanvas(props: StageProps) {
       <Suspense fallback={null}>
         <Studio lowPower={props.lowPower} />
         <Models {...props} onReady={onReady} />
+        <AdaptiveResolution progress={props.progress} intro={props.intro} introMs={INTRO_MS} lowPower={props.lowPower} stats={props.stats} />
       </Suspense>
     </Canvas>
   );
@@ -140,7 +144,7 @@ const HERO_MAX_AIR = 0.2;
 /** on phones the headline is narrow, so the Limpet is sized against the viewport instead */
 const HERO_WIDTH_OF_PHONE = 0.68;
 /** the float-in from below the screen edge after the loader (ms) */
-const INTRO_MS = 2600;
+export const INTRO_MS = 2600;
 const TAN_HALF_FOV = Math.tan(THREE.MathUtils.degToRad(15));
 const ONE = new THREE.Vector3(1, 1, 1);
 
