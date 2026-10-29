@@ -150,9 +150,9 @@ export function DesktopDemo({ reduced }: { reduced: boolean }) {
             </div>
           </div>
           <div className="widget weather">
-            <div className="w-top"><span className="w-city">Memphis</span><span className="w-icon">☀︎</span></div>
-            <div className="w-temp">82°</div>
-            <div className="w-note">Sunny · H:88° L:71°</div>
+            <div className="w-top"><span className="w-city">London</span><span className="w-icon">☁︎</span></div>
+            <div className="w-temp">14°</div>
+            <div className="w-note">Cloudy · H:16° L:9°</div>
           </div>
         </div>
 
