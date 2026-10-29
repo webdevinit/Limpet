@@ -88,6 +88,18 @@ export function Pricing() {
           {plans.map((pl) => (
             <div className="option" key={pl.name}>
               <p className="name">{pl.name}</p>
+              {/* what comes with it: Lite a check mark, Pro the laptop dock plate (rendered from the 3D scene: `?render=dock` in dev) */}
+              <p className="includes">
+                {pl.lineImage ? (
+                  <picture className="includes-dock">
+                    <source srcSet="/images/card-dock.webp" type="image/webp" />
+                    <img src="/images/card-dock.png" alt="" width={1024} height={1024} loading="lazy" decoding="async" />
+                  </picture>
+                ) : (
+                  <svg className="includes-check" viewBox="0 0 20 20" aria-hidden="true" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M4 10.5l4 4 8-9" /></svg>
+                )}
+                <span>{pl.line}</span>
+              </p>
               <p className="caps">{pl.capacities.join(' · ')}</p>
               <p className="price"><span className="from">From</span><b>{pricing.currency}{pl.launchPriceFrom}</b></p>
               <p className="batch-label">{pricing.batchLabel}</p>

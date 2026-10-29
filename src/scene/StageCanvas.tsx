@@ -102,7 +102,7 @@ function InvalidateBridge({ handle }: { handle: React.MutableRefObject<(() => vo
 }
 
 /** Soft studio: large, blurred light sources so sandblasted metal shows broad gradients, not streaks. */
-function Studio({ lowPower }: { lowPower: boolean }) {
+export function Studio({ lowPower }: { lowPower: boolean }) {
   return (
     <>
       <ambientLight intensity={0.14} />
@@ -121,10 +121,10 @@ function Studio({ lowPower }: { lowPower: boolean }) {
   );
 }
 
-type Tex = { leather: LeatherMaps; grain: THREE.CanvasTexture; fabric: THREE.CanvasTexture };
+export type Tex = { leather: LeatherMaps; grain: THREE.CanvasTexture; fabric: THREE.CanvasTexture };
 
 /** Returns a replacement material when the original should be swapped (leather), otherwise tunes in place. */
-function tuneMaterial(mat: THREE.Material, tex: Tex): THREE.Material | null {
+export function tuneMaterial(mat: THREE.Material, tex: Tex): THREE.Material | null {
   const s = mat as THREE.MeshStandardMaterial;
   const n = mat.name;
   if (n === 'Limpet aluminium') {

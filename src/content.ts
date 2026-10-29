@@ -43,6 +43,9 @@ export const pricing = {
   currency: '£', // (existing site)
   lite: {
     name: 'Limpet Lite', // (existing site)
+    /** the line under the shared product image: a check mark and this text */
+    line: 'Cable for phone and laptop.',
+    lineImage: false,
     capacities: ['125 GB', '250 GB', '500 GB'], // (existing site)
     launchPriceFrom: 99, // (existing site) – launch price only, no struck-through price
     href: site.links.configureLite,
@@ -50,6 +53,9 @@ export const pricing = {
   },
   pro: {
     name: 'Limpet Pro', // (existing site)
+    /** the line under the shared product image: the dock plate (rendered from the 3D scene, `?render=dock`) and this text */
+    line: 'With docking station for laptop and cable for phone.',
+    lineImage: true,
     capacities: ['500 GB', '1 TB'], // (existing site)
     launchPriceFrom: 199, // (existing site)
     href: site.links.configurePro,

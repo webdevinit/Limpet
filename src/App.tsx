@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { lazy, Suspense, useCallback, useEffect, useRef, useState } from 'react';
 import { Header } from './components/Header';
 import { Stage } from './scene/Stage';
 import { StaticStage } from './scene/StaticStage';
@@ -7,7 +7,16 @@ import { Loader } from './components/Loader';
 import { useCapabilities } from './hooks/useCapabilities';
 import { useProgress } from '@react-three/drei';
 
+// dev only: `?render=dock` renders the laptop dock plate from the 3D scene and saves it (see scene/RenderCards)
+const RenderCards = lazy(() => import('./scene/RenderCards'));
+const renderCard = import.meta.env.DEV && typeof window !== 'undefined' ? new URLSearchParams(window.location.search).get('render') : null;
+
 export default function App() {
+  if (renderCard === 'dock') return <Suspense fallback={null}><RenderCards which={renderCard} /></Suspense>;
+  return <Site />;
+}
+
+function Site() {
   const caps = useCapabilities();
   // `?static=1` previews the no-WebGL / reduced-motion version of the page.
   const forceStatic = typeof window !== 'undefined' && new URLSearchParams(window.location.search).has('static');
