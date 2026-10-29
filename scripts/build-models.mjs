@@ -12,7 +12,7 @@
  */
 import { NodeIO } from '@gltf-transform/core';
 import { ALL_EXTENSIONS } from '@gltf-transform/extensions';
-import { prune, dedup, draco, simplify, weld, resample, textureCompress, mergeDocuments, unpartition } from '@gltf-transform/functions';
+import { prune, dedup, draco, simplify, weld, join, resample, textureCompress, mergeDocuments, unpartition } from '@gltf-transform/functions';
 import { MeshoptSimplifier } from 'meshoptimizer';
 import draco3d from 'draco3dgltf';
 import { mat4, quat, vec3 } from 'gl-matrix';
@@ -67,6 +67,11 @@ async function finish(doc, file, opts = {}) {
     prune({ keepAttributes: true }),
     dedup(),
     weld(),
+    // perf step 3: merge sibling meshes that share a material into one draw call. join() works level by
+    // level, so parts under a different parent (the MacBook's lid under MacBook_Display_Hinge) stay separate
+    // and the hinge can still be rotated at runtime.
+    join({ keepNamed: false }),
+    prune({ keepAttributes: true }),
     ...(opts.simplify ? [simplify({ simplifier: MeshoptSimplifier, ratio: opts.simplify, error: 0.0005 })] : []),
     resample(),
     textureCompress({ targetFormat: 'webp', resize: [1024, 1024] }),
