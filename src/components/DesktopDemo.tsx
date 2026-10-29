@@ -1,5 +1,5 @@
 /**
- * Looping macOS-style desktop demo, after the real recording: the pointer right-clicks the "Project Photos" folder,
+ * Looping macOS-style desktop demo, after the real recording: the pointer right-clicks the "Screenshots" folder,
  * chooses "Offload to Limpet…" at the bottom of the (dark) context menu, the folder gets a small Limpet badge and a
  * cloud after its name, and the Limpet icon in the menu bar shows a spinning ring while the files move.
  * Pure HTML/CSS/JS, no screenshots of macOS are used. The pointer is tweened in JS and the menu hover state is
@@ -16,7 +16,7 @@ const MENU_ITEMS: { label: string; sep?: boolean; sub?: boolean; icon?: IconKind
   { label: 'Move to Bin', icon: 'bin', sep: true },
   { label: 'Get Info' },
   { label: 'Rename' },
-  { label: 'Compress “Project Photos”' },
+  { label: 'Compress “Screenshots”' },
   { label: 'Duplicate' },
   { label: 'Make Alias' },
   { label: 'Quick Look' },
@@ -137,7 +137,7 @@ export function DesktopDemo({ reduced }: { reduced: boolean }) {
   }, [reduced, fy]);
 
   return (
-    <div className="desk-scene" role="img" aria-label="macOS desktop: right-clicking the Project Photos folder shows an Offload to Limpet option. After choosing it, the folder stays in place, gets a small Limpet badge and a cloud next to its name, and the Limpet icon in the menu bar shows a spinning ring while the files move.">
+    <div className="desk-scene" role="img" aria-label="macOS desktop: right-clicking the Screenshots folder shows an Offload to Limpet option. After choosing it, the folder stays in place, gets a small Limpet badge and a cloud next to its name, and the Limpet icon in the menu bar shows a spinning ring while the files move.">
       <div className="desk" ref={deskRef}>
         <Wallpaper />
         <MenuBar syncRef={syncRef} />
@@ -163,7 +163,7 @@ export function DesktopDemo({ reduced }: { reduced: boolean }) {
         <div className="desk-folder" ref={folderRef} style={{ left: `${FOLDER.x}%`, top: `${fy}%` }}>
           <FolderIcon />
           <span className="limpet-badge" aria-hidden="true"><LimpetDeviceMark /></span>
-          <span className="label">Project Photos<CloudMark /></span>
+          <span className="label">Screenshots<CloudMark /></span>
         </div>
 
         <div className="ctx" ref={menuRef} style={{ left: `${FOLDER.x + 5}%`, top: `${fy + 10}%` }} aria-hidden="true">
