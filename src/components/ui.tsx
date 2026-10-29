@@ -1,4 +1,4 @@
-import type { ReactNode } from 'react';
+import { useEffect, useRef, type ReactNode } from 'react';
 import type { Text as TText } from '../content';
 
 /** Renders either plain text or a clearly marked placeholder. */
@@ -29,16 +29,34 @@ export function LimpetMark({ className, draw, color = '#ff6935' }: { className?:
 }
 
 /** Pat Pending face: two heavy-lidded eyes and a small smile, after the supplied artwork. */
-export function PatPendingFace({ className }: { className?: string }) {
+// right eye, open and closed for the wink (same commands, so the shapes morph point by point)
+const LID_OPEN = 'M 996 118 L 694 48';
+const LID_WINK = 'M 990 134 L 698 80';
+const EYE_OPEN = 'M 694 48 L 652 182 C 632 250 694 290 754 262 C 792 244 809 205 809 160';
+const EYE_WINK = 'M 698 80 L 702 98 C 716 132 762 140 794 128 C 816 120 828 108 832 100';
+/** length of the wink (ms): closes quickly, opens a little slower */
+export const WINK_MS = 560;
+
+/** `wink`: change the number to play the wink once (right eye morphs shut and open again). */
+export function PatPendingFace({ className, wink = 0 }: { className?: string; wink?: number }) {
+  const ref = useRef<SVGSVGElement>(null);
+  useEffect(() => {
+    if (!wink) return;
+    ref.current?.querySelectorAll<SVGAnimateElement>('animate.wink').forEach((a) => { try { a.beginElement(); } catch { /* no SMIL */ } });
+  }, [wink]);
+  const morph = (open: string, closed: string) => (
+    <animate className="wink" attributeName="d" begin="indefinite" dur={`${WINK_MS}ms`} values={`${open};${closed};${closed};${open}`}
+      keyTimes="0;0.32;0.5;1" calcMode="spline" keySplines="0.4 0 0.2 1;0 0 1 1;0.3 0 0.2 1" fill="remove" />
+  );
   return (
-    <svg className={className} viewBox="0 0 1024 420" aria-hidden="true" fill="none" stroke="#1d1d1f" strokeLinecap="round" strokeLinejoin="round">
+    <svg ref={ref} className={className} viewBox="0 0 1024 420" aria-hidden="true" fill="none" stroke="#1d1d1f" strokeLinecap="round" strokeLinejoin="round">
       <g className="eye eye-l">
         <path strokeWidth="54" d="M 28 118 L 330 48" />
         <path strokeWidth="54" d="M 330 48 L 372 182 C 392 250 330 290 270 262 C 232 244 215 205 215 160" />
       </g>
       <g className="eye eye-r">
-        <path strokeWidth="54" d="M 996 118 L 694 48" />
-        <path strokeWidth="54" d="M 694 48 L 652 182 C 632 250 694 290 754 262 C 792 244 809 205 809 160" />
+        <path strokeWidth="54" d={LID_OPEN}>{morph(LID_OPEN, LID_WINK)}</path>
+        <path strokeWidth="54" d={EYE_OPEN}>{morph(EYE_OPEN, EYE_WINK)}</path>
       </g>
       <path className="mouth" strokeWidth="46" d="M 446 330 C 460 392 564 392 578 330" />
     </svg>

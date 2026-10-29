@@ -1,22 +1,25 @@
 /**
  * Full-page loading screen: the limpet-shell mark draws itself, the Pat Pending face blinks,
- * a thin orange bar fills with real asset progress. Shown for at least `MIN_MS`.
+ * a thin orange bar fills with real asset progress. Shown for at least `MIN_MS`. Once everything is
+ * loaded the face winks (right eye), and the loader fades as the eye opens again.
  */
 import { useEffect, useState } from 'react';
-import { LimpetMark, PatPendingFace } from './ui';
+import { LimpetMark, PatPendingFace, WINK_MS } from './ui';
 
 export const MIN_MS = 2000;
 
 export function Loader({ progress, done, onLeaving, onHidden }: { progress: number; done: boolean; onLeaving?: () => void; onHidden: () => void }) {
   const [minElapsed, setMinElapsed] = useState(false);
   const [leaving, setLeaving] = useState(false);
+  const [wink, setWink] = useState(0);
   useEffect(() => { const t = setTimeout(() => setMinElapsed(true), MIN_MS); return () => clearTimeout(t); }, []);
   useEffect(() => {
     if (!(done && minElapsed)) return;
-    setLeaving(true);
-    onLeaving?.();
-    const t = setTimeout(onHidden, 650);
-    return () => clearTimeout(t);
+    setWink((w) => w + 1);
+    // the fade starts as the eye opens again
+    const t1 = setTimeout(() => { setLeaving(true); onLeaving?.(); }, WINK_MS * 0.55);
+    const t2 = setTimeout(onHidden, WINK_MS * 0.55 + 650);
+    return () => { clearTimeout(t1); clearTimeout(t2); };
   }, [done, minElapsed, onLeaving, onHidden]);
   useEffect(() => {
     document.documentElement.classList.add('is-loading');
@@ -29,7 +32,7 @@ export function Loader({ progress, done, onLeaving, onHidden }: { progress: numb
       <div className="loader-inner">
         <div className="loader-mark">
           <LimpetMark className="loader-shell" draw />
-          <PatPendingFace className="loader-face" />
+          <PatPendingFace className="loader-face" wink={wink} />
         </div>
         <p className="loader-line">Holds on. <span>Like a limpet.</span></p>
         <div className="loader-bar" aria-hidden="true"><i style={{ width: `${leaving ? 100 : pct}%` }} /></div>
