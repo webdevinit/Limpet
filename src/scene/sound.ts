@@ -16,7 +16,7 @@ export const VARIANTS: Record<Device, { id: string; label: string }[]> = {
     { id: 'knock', label: 'Knock: woody, a little brighter' },
   ],
   phone: [
-    { id: 'klack', label: 'Klack: a dry, bright snap, no tail (MagSafe-like)' },
+    { id: 'klack', label: 'Klack: a dry snap, highs only, no tail (MagSafe-like)' },
     { id: 'tick', label: 'Tick: small and bright' },
     { id: 'snap', label: 'Snap: a fuller click' },
   ],
@@ -95,11 +95,11 @@ function tone(t: number, f0: number, f1: number, dur: number, gain: number, type
 }
 
 /** a filtered noise burst: the click of metal meeting metal / glass */
-function click(t: number, freq: number, q: number, dur: number, gain: number) {
+function click(t: number, freq: number, q: number, dur: number, gain: number, type: BiquadFilterType = 'bandpass') {
   const s = ctx!.createBufferSource();
   s.buffer = noiseBuf;
   const f = ctx!.createBiquadFilter();
-  f.type = 'bandpass';
+  f.type = type;
   f.frequency.value = freq;
   f.Q.value = q;
   const g = ctx!.createGain();
@@ -116,8 +116,8 @@ const SYNTHS: Record<string, (t: number) => void> = {
   thunk: (t) => { tone(t, 112, 52, 0.22, 1.0); click(t, 900, 0.8, 0.022, 0.32); },
   knock: (t) => { tone(t, 230, 175, 0.09, 0.55, 'triangle'); tone(t, 460, 350, 0.05, 0.18); click(t, 3000, 2, 0.009, 0.16); },
   // iPhone: the magnets catch on the glass back
-  // two bright transients a few ms apart (the snap of the magnets), only a hint of body, gone within ~20 ms
-  klack: (t) => { click(t, 5200, 0.9, 0.006, 0.6); click(t + 0.004, 8000, 1.2, 0.004, 0.28); tone(t, 2300, 1500, 0.014, 0.16); tone(t, 780, 580, 0.016, 0.1); },
+  // highs only: two high-passed transients a few ms apart (the snap of the magnets), no tonal body, gone within a few ms
+  klack: (t) => { click(t, 5500, 0.7, 0.004, 0.75, 'highpass'); click(t + 0.003, 9000, 0.7, 0.003, 0.35, 'highpass'); },
   tick: (t) => { click(t, 6000, 2, 0.007, 0.42); tone(t, 920, 700, 0.03, 0.22); },
   snap: (t) => { click(t, 3000, 1, 0.016, 0.5); tone(t, 380, 210, 0.09, 0.5); },
 };
