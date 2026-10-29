@@ -11,6 +11,7 @@ import {
 } from './choreography';
 import { measureHeroLayout, type HeroLayout } from './heroLayout';
 import { AdaptiveResolution } from './AdaptiveResolution';
+import { Backdrop } from './Backdrop';
 import { Cable, type CableHandle } from './Cable';
 import { leatherTextures, leatherFromImage, grainTexture, fabricTexture, type LeatherMaps } from './textures';
 
@@ -54,10 +55,13 @@ export default function StageCanvas(props: StageProps) {
     <Canvas
       dpr={[1, props.lowPower ? 1.5 : 2]}
       camera={{ fov: 30, near: 0.01, far: 10, position: [0, 0.02, 0.4] }}
-      gl={{ antialias: true, alpha: true, powerPreference: 'high-performance', toneMapping: THREE.ACESFilmicToneMapping, toneMappingExposure: 0.98 }}
+      // opaque canvas: the stage gradient is drawn by <Backdrop/>, so the browser never blends the canvas over the page.
+      // three r170 always asks for an alpha context itself, so the context is created here with alpha: false.
+      gl={createOpaqueRenderer}
       frameloop={warm ? 'demand' : 'always'}
       style={{ pointerEvents: 'none' }}
     >
+      <Backdrop />
       <Suspense fallback={null}>
         <Studio lowPower={props.lowPower} />
         <Models {...props} onReady={onReady} />
@@ -66,6 +70,17 @@ export default function StageCanvas(props: StageProps) {
       </Suspense>
     </Canvas>
   );
+}
+
+/** A renderer on an opaque WebGL context (no alpha channel for the compositor to blend). */
+function createOpaqueRenderer(canvas: HTMLCanvasElement | OffscreenCanvas) {
+  const attrs: WebGLContextAttributes = { alpha: false, antialias: true, depth: true, stencil: false, premultipliedAlpha: true, preserveDrawingBuffer: false, powerPreference: 'high-performance' };
+  const context = (canvas.getContext('webgl2', attrs) ?? canvas.getContext('webgl', attrs)) as WebGL2RenderingContext | WebGLRenderingContext;
+  const renderer = new THREE.WebGLRenderer({ canvas, context, antialias: true, alpha: false, powerPreference: 'high-performance' });
+  renderer.toneMapping = THREE.ACESFilmicToneMapping;
+  renderer.toneMappingExposure = 0.98;
+  renderer.setClearColor('#f7f7f9', 1);
+  return renderer;
 }
 
 /** Hands the canvas's `invalidate` to the page (scroll handler, loader) so they can request frames. */
