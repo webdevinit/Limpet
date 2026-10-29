@@ -196,7 +196,8 @@ export function stageConfig(layout: Layout): StageConfig {
     heroCamY: -0.01 + yo + ty,
     heroCamDist: 0.55 * dist,
     heroCenter: new THREE.Vector3(0, 0.0 + yo + ty, 0),
-    finalPos: new THREE.Vector3(PAIR_HALF, 0.06 + yo, 0),
+    // the final pair (both shells share this height); on desktop a little lower, closer to the closing copy
+    finalPos: new THREE.Vector3(PAIR_HALF, (m ? 0.06 : 0.043) + yo, 0),
     macYaw: Math.PI - 0.95,
     macDockPoint: new THREE.Vector3(0.13 * xo, 0.0 + yo, 0.03),
     phonePos: new THREE.Vector3(0.085 * xo, (m ? 0.085 : 0.03) + yo, 0),
