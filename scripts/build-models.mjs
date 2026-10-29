@@ -12,7 +12,7 @@
  */
 import { NodeIO } from '@gltf-transform/core';
 import { ALL_EXTENSIONS } from '@gltf-transform/extensions';
-import { prune, dedup, draco, simplify, weld, join, resample, textureCompress, mergeDocuments, unpartition } from '@gltf-transform/functions';
+import { prune, dedup, draco, simplify, simplifyPrimitive, weld, join, resample, textureCompress, mergeDocuments, unpartition } from '@gltf-transform/functions';
 import { MeshoptSimplifier } from 'meshoptimizer';
 import draco3d from 'draco3dgltf';
 import { mat4, quat, vec3 } from 'gl-matrix';
@@ -73,6 +73,23 @@ async function finish(doc, file, opts = {}) {
     join({ keepNamed: false }),
     prune({ keepAttributes: true }),
     ...(opts.simplify ? [simplify({ simplifier: MeshoptSimplifier, ratio: opts.simplify, error: 0.0005 })] : []),
+  );
+  // perf step 7: decimate per part. opts.simplifyFor(nodeName, materialName) returns { ratio, error } or null;
+  // parts that matter up close (display, hinge, dock face) are left alone, hidden bulk (base cover, cable
+  // internals, solder pads) is reduced hard.
+  if (opts.simplifyFor) {
+    await MeshoptSimplifier.ready;
+    for (const node of doc.getRoot().listNodes()) {
+      const mesh = node.getMesh();
+      if (!mesh) continue;
+      for (const prim of mesh.listPrimitives()) {
+        const r = opts.simplifyFor(node.getName() || '', prim.getMaterial()?.getName() || '');
+        if (!r || r.ratio >= 1) continue;
+        simplifyPrimitive(prim, { simplifier: MeshoptSimplifier, ratio: r.ratio, error: r.error ?? 0.001 });
+      }
+    }
+  }
+  await doc.transform(
     resample(),
     textureCompress({ targetFormat: 'webp', resize: [1024, 1024] }),
     draco({ method: 'edgebreaker', quantizePosition: 14, quantizeNormal: 10, quantizeTexcoord: 12 }),
@@ -210,13 +227,28 @@ let macDock;
     lidDeg: LID_DEG,
   };
   for (const m of root.listMaterials()) if (m.getName() === 'Orange grain plastic') m.setName('Dock ring');
-  await finish(doc, `${OUT}/macbook.glb`, { simplify: 0.35 });
+  // ratios are relative to the handover geometry (the old global 0.35 is replaced by these)
+  const MAC_PARTS = [
+    [/BaseCover/, 0.04, 0.004],          // bottom shell with speaker/vent holes: never seen up close
+    [/SSD_Connector/, 0.09, 0.002],
+    [/solder_pad/, 0.08, 0.003],
+    [/Cable_Internal_Fabric/, 0.14, 0.002],
+    [/Cable_Flexible_Fabric/, 0.23, 0.001],
+    [/Keyboard/, 0.15, 0.002],
+    [/SSD_Laptop_plate|SSD_Cable_Plate/, 0.2, 0.001],
+    [/MacBook_Body/, 0.25, 0.001],
+    [/Foot|Screengasket|Strain_Relief|Sticker|USB_Port/, 0.35, 0.001],
+    [/MacBook_Display|Hinge|Apple_Logo|Pusher|Dock/, 1, 0],   // kept as delivered
+  ];
+  await finish(doc, `${OUT}/macbook.glb`, {
+    simplifyFor: (name) => { const hit = MAC_PARTS.find(([re]) => re.test(name)); return hit ? { ratio: hit[1], error: hit[2] } : { ratio: 0.35, error: 0.0005 }; },
+  });
 }
 
 // ---------------------------------------------------------------- iPhone
 {
   const doc = await io.read(`${B}/Devices/iphone.glb`);
-  await finish(doc, `${OUT}/iphone.glb`);
+  await finish(doc, `${OUT}/iphone.glb`, { simplifyFor: () => ({ ratio: 0.6, error: 0.0008 }) });
 }
 
 // ---------------------------------------------------------------- iPhone docking track (from the owner's rig)

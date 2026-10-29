@@ -68,6 +68,8 @@ Scrolling up plays everything in reverse (the sequence is a pure function of pro
 - Adaptive resolution (`src/scene/AdaptiveResolution.tsx`): full device resolution at rest (capped at 4.5 MP), stepped down while moving when frames exceed 17.5 ms (never below 1.1 MP), restored 220 ms after the motion stops.
 - `?stats=1` shows fps, frame time, dpr, megapixels, draw calls, triangles and the frame counter over the stage.
 - The canvas is opaque (its WebGL context is created in `StageCanvas.tsx` with `alpha: false`, because three r170 always asks for alpha itself) and `src/scene/Backdrop.tsx` draws the stage gradient as one full-screen triangle, so the browser never blends the canvas over the page.
+- The model build decimates per part (`MAC_PARTS` in `scripts/build-models.mjs`): the MacBook's bottom shell, connector, solder pads and cable internals are reduced hard, display, hinge and dock face are kept as delivered (MacBook 241 k → 81 k triangles, iPhone 61 k → 38 k at ratio 0.6, Limpet untouched).
+- `?nochase=1` makes the sequence jump straight to the scroll position (no capped chase), handy for checking a scene.
 - The model build merges sibling meshes that share a material (`join()` in `scripts/build-models.mjs`): MacBook 36 → 20 draw calls, iPhone 97 → 34. It works level by level, so the lid under `MacBook_Display_Hinge` stays a separate subtree and can still be rotated.
 
 - A full-page loader (`src/components/Loader.tsx`: shell mark, Pat Pending face, "Holds on. Like a limpet.", real asset progress, min 2 s) covers the page until the models are decoded; the Limpet then glides in. three.js is a lazy chunk.

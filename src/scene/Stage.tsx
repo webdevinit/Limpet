@@ -19,6 +19,8 @@ const StageCanvas = lazy(() => import('./StageCanvas'));
 const MAX_SPEED = 0.2;
 /** below the cap the sequence eases towards the scroll position at this rate (1/s), so small scrolls stay smooth */
 const FOLLOW = 9;
+/** `?nochase=1` lets the sequence jump straight to the scroll position (for checks and screenshots) */
+const NO_CHASE = typeof window !== 'undefined' && new URLSearchParams(window.location.search).has('nochase');
 
 export function Stage({ caps, onLoaded, intro, invalidate }: { caps: Capabilities; onLoaded: () => void; intro: React.MutableRefObject<number>; invalidate: React.MutableRefObject<(() => void) | null> }) {
   const trackRef = useRef<HTMLElement>(null);
@@ -57,7 +59,7 @@ export function Stage({ caps, onLoaded, intro, invalidate }: { caps: Capabilitie
       lastT = now;
       // off screen (or on the first measure, e.g. a restored scroll position) there is nothing to watch: jump
       const visible = rect.bottom > 0 && rect.top < vh;
-      if (shown < 0 || !visible) shown = target;
+      if (shown < 0 || !visible || NO_CHASE) shown = target;
       else {
         const d = target - shown;
         const step = Math.min(Math.abs(d), Math.max(Math.abs(d) * FOLLOW, 0.002) * dt, MAX_SPEED * dt);
