@@ -140,6 +140,18 @@ p { margin: 0; }
 }
 .stage-progress i { width: 6px; height: 6px; border-radius: 50%; background: #c9c9ce; transition: background .3s, transform .3s; }
 .stage-progress i.active { background: var(--ink); transform: scale(1.3); }
+/* callout beside the docked Limpet: dot on the shell, a hairline down, the label in the free space below */
+.fact { position: absolute; left: 0; top: 0; z-index: 3; pointer-events: none; transform: translate3d(var(--ax, -999px), var(--ay, -999px), 0); }
+.fact-dot { position: absolute; left: -5px; top: -5px; width: 10px; height: 10px; border-radius: 50%; background: var(--orange);
+  box-shadow: 0 0 0 3px rgba(255,255,255,.92), 0 1px 6px rgba(0,0,0,.12); transform: scale(0); transition: transform .2s var(--ease); }
+.fact-line { position: absolute; left: -0.5px; top: 10px; width: 1px; height: var(--len, 80px); background: rgba(29,29,31,.42);
+  transform-origin: 50% 0; transform: scaleY(0); transition: transform .2s var(--ease); }
+.fact-label { position: absolute; left: 0; top: calc(var(--len, 80px) + 22px); margin: 0; white-space: nowrap; transform: translate(-50%, 6px);
+  opacity: 0; font-size: clamp(15px, 1.15vw, 20px); font-weight: 600; letter-spacing: -0.01em; color: var(--ink); transition: opacity .2s var(--ease), transform .2s var(--ease); }
+/* in: dot, then the line draws down, then the label settles */
+.fact.is-on .fact-dot { transform: scale(1); transition: transform .35s var(--ease) .05s; }
+.fact.is-on .fact-line { transform: scaleY(1); transition: transform .5s var(--ease) .18s; }
+.fact.is-on .fact-label { opacity: 1; transform: translate(-50%, 0); transition: opacity .45s var(--ease) .5s, transform .45s var(--ease) .5s; }
 /* docking sounds on / off */
 .stage-sound {
   position: absolute; right: 16px; bottom: 10px; z-index: 4; width: 34px; height: 34px; display: grid; place-items: center;

@@ -73,6 +73,8 @@ export const scenes = {
     headline: 'Space to do\nyour best.', // (existing site)
     body: 'Dock it onto your laptop lid. Run apps and work on projects directly from Limpet. Same laptop. Same workflow.', // (existing site)
     detail: 'The included flat, non-proprietary USB-C cable is designed for low interference and flexes with your laptop’s hinge.', // (existing site)
+    /** callout next to the docked Limpet (Pro: up to 1 TB, existing site) */
+    fact: 'Up to 1 TB more storage',
   },
   iphone: {
     headline: 'Your studio.\nOn the go.', // (existing site)
