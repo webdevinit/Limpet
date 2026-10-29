@@ -1,0 +1,8 @@
+node_modules
+dist
+Limpet_Website_Handover_2026-10-29
+Handover Files
+*.blend
+*.blend1
+.claude/
+tsconfig.tsbuildinfo

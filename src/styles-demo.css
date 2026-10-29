@@ -1,0 +1,78 @@
+/* ------------------------------------------------------------------
+   Desktop demo (Save to Limpet) — tilted in 3D, edges dissolve into the page.
+   Loaded after styles-extra.css and overrides its earlier .desk rules.
+   ------------------------------------------------------------------ */
+.demo-wrap { display: grid; gap: 6px; }
+.demo-caption { font-size: 14px; color: var(--muted); text-align: center; position: relative; z-index: 1; }
+.desk-scene { perspective: 1500px; perspective-origin: 40% 30%; margin: -6% -14% 2% -10%; }
+.desk {
+  position: relative; aspect-ratio: 4 / 3.4; border-radius: 0; overflow: visible; box-shadow: none; background: none;
+  transform: rotateX(9deg) rotateY(-13deg) rotateZ(1.5deg); transform-style: preserve-3d;
+  font-family: var(--font); font-size: 11px; color: #1d1d1f; user-select: none;
+  -webkit-mask-image: radial-gradient(ellipse 78% 74% at 50% 46%, #000 48%, rgba(0,0,0,.6) 70%, transparent 100%);
+  mask-image: radial-gradient(ellipse 78% 74% at 50% 46%, #000 48%, rgba(0,0,0,.6) 70%, transparent 100%);
+}
+.desk-wall { position: absolute; inset: 0; width: 100%; height: 100%; }
+.desk-menubar {
+  position: absolute; top: 0; left: 0; right: 0; height: 7.5%; display: flex; align-items: center; gap: 13px; padding: 0 4% 0 5%;
+  background: none; backdrop-filter: none; -webkit-backdrop-filter: none; font-size: 11px; font-weight: 500; color: #1d1d1f;
+}
+.desk-menubar .apple { font-size: 13px; margin-right: 1px; }
+.desk-menubar b { font-weight: 700; }
+.desk-menubar .right {
+  margin-left: auto; display: flex; align-items: center; gap: 9px; padding: 3px 10px 3px 9px; border-radius: 999px;
+  background: rgba(30,30,34,.8); color: #fff; box-shadow: inset 0 0 0 .5px rgba(255,255,255,.18);
+}
+.desk-menubar .ic { width: 13px; height: 13px; display: block; }
+.desk-menubar .ic.batt { width: 22px; }
+.desk-menubar .clock { font-size: 11px; font-weight: 500; letter-spacing: -.01em; margin-left: 2px; }
+.desk-widgets { position: absolute; right: 5%; top: 11%; width: 31%; display: grid; gap: 9px; padding: 0; -webkit-mask-image: none; mask-image: none; opacity: 1; }
+.widget {
+  border-radius: 14px; padding: 9px 11px; color: #1d1d1f;
+  background: linear-gradient(180deg, rgba(255,255,255,.78), rgba(255,255,255,.62));
+  box-shadow: 0 8px 22px rgba(0,0,0,.10), inset 0 0 0 .5px rgba(255,255,255,.6);
+}
+.widget.cal .cal-h { display: flex; justify-content: space-between; color: #ff3b30; font-weight: 700; font-size: 9.5px; text-transform: uppercase; letter-spacing: .02em; margin-bottom: 3px; }
+.widget.cal .cal-y { color: #6e6e73; font-weight: 600; text-transform: none; }
+.widget.cal .cal-g { display: grid; grid-template-columns: repeat(7, 1fr); gap: 1px 0; font-size: 8px; text-align: center; }
+.widget.cal .cal-g i { font-style: normal; color: #8e8e93; font-weight: 600; }
+.widget.cal .cal-g span { line-height: 12px; }
+.widget.cal .cal-g .today { background: #ff3b30; color: #fff; border-radius: 50%; width: 12px; margin: 0 auto; font-weight: 600; }
+.widget.weather { background: linear-gradient(160deg, rgba(120,170,235,.85), rgba(60,110,200,.85)); color: #fff; box-shadow: 0 8px 22px rgba(0,0,0,.14), inset 0 0 0 .5px rgba(255,255,255,.35); }
+.widget.weather .w-top { display: flex; justify-content: space-between; font-weight: 600; font-size: 10px; }
+.widget.weather .w-temp { font-size: 24px; font-weight: 300; line-height: 1.15; }
+.widget.weather .w-note { font-size: 8.5px; opacity: .92; }
+.desk-folder { position: absolute; width: 12%; display: grid; justify-items: center; gap: 2px; }
+.desk-folder .folder-svg { width: 100%; filter: drop-shadow(0 2px 3px rgba(0,0,0,.18)); }
+.desk-folder .label { font-size: 9.5px; font-weight: 500; color: #fff; text-shadow: 0 1px 2px rgba(0,0,0,.6); padding: 0 4px; }
+.limpet-badge {
+  position: absolute; right: 6%; bottom: 27%; width: 22%; aspect-ratio: 1; border-radius: 50%; background: var(--orange); color: #fff;
+  display: grid; place-items: center; box-shadow: 0 2px 6px rgba(0,0,0,.25), 0 0 0 1.5px #fff;
+  animation: none; transform: scale(0); transition: transform .35s cubic-bezier(.34,1.56,.64,1);
+}
+.limpet-badge.show { transform: scale(1); }
+.limpet-badge svg { width: 66%; height: 66%; }
+.ctx { width: 43%; background: rgba(246,246,248,.96); backdrop-filter: none; -webkit-backdrop-filter: none; }
+.ctx-item.hover.flash { background: transparent; color: #1d1d1f; }
+.ctx-item.flash:not(.hover) { background: transparent; color: #1d1d1f; }
+.desk-pointer { transition: none; will-change: left, top; }
+@media (max-width: 860px) { .desk-scene { margin: -2% -8% 0; } }
+@media (max-width: 480px) { .desk-menubar .clock { font-size: 9px; } }
+
+/* ------------------------------------------------------------------
+   Craft video + configure teaser (same build-up as the existing site)
+   ------------------------------------------------------------------ */
+.media.video video, .media.video img { width: 100%; height: auto; aspect-ratio: 16 / 9; object-fit: cover; display: block; }
+.configure .configure-hero { margin: 32px auto 0; width: min(360px, 70vw); }
+.configure .configure-hero img { width: 100%; height: auto; filter: drop-shadow(0 30px 50px rgba(0,0,0,.12)); }
+.configure-options { display: grid; grid-template-columns: 1fr 1fr; gap: 32px; max-width: 640px; margin: 24px auto 0; }
+.configure-options .option { display: grid; justify-items: center; gap: 4px; }
+.configure-options .name { font-size: 17px; font-weight: 550; color: var(--ink); }
+.configure-options .caps { font-size: 13px; color: var(--muted); }
+.configure-options .price { display: flex; align-items: baseline; gap: 6px; color: var(--ink); margin-top: 8px; }
+.configure-options .price .from { font-size: 15px; color: var(--muted); }
+.configure-options .price b { font-size: 24px; font-weight: 650; letter-spacing: -0.04em; }
+.configure-options .batch-label { font-size: 13px; color: var(--muted); }
+.configure-options .btn { margin-top: 12px; }
+.configure .delivery { max-width: 430px; margin: 32px auto 0; }
+@media (max-width: 640px) { .configure-options { grid-template-columns: 1fr; gap: 36px; } }

@@ -1,0 +1,1 @@
+{"note":"Column-major 4x4: canonical Limpet frame -> MacBook_Display_Hinge local frame. hingeRotation90 = hinge quaternion with the lid upright; the cable is baked for lidDeg.","matrix":[0,1,0,0,1,0,0,0,0,0,-1,0,0.01055,0.030888,-0.10697,1],"hingeLocalTranslation":[0,0.008682,-0.10795],"hingeRotation90":[0,0.707107,0,0.707107],"lidDeg":82}
