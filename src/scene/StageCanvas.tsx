@@ -14,6 +14,7 @@ import { AdaptiveResolution } from './AdaptiveResolution';
 import { Backdrop } from './Backdrop';
 import { Cable, type CableHandle } from './Cable';
 import { DockSurface, footprintOf, RING_MS } from './DockFX';
+import { SIDES, SIDES_MIN_WIDTH, SIDES_DELAY_MS, placeSide } from './HeroSides';
 import { leatherTextures, leatherFromImage, grainTexture, fabricTexture, type LeatherMaps } from './textures';
 
 export type StageProps = {
@@ -256,6 +257,10 @@ function Models({ progress, magnet, contact, intro, heroLayout, layout, onReady 
   const kickDir = useMemo(() => new THREE.Vector3(), []);
   const compQuat = useMemo(() => companionQuat(), []);
   // Scene 4 companion: a second instance of the shell showing the leather side (own materials so it can fade in)
+  // start screen, laptops and up: two more Limpets at the edges (clones sharing geometry and materials)
+  const sides = useMemo(() => SIDES.map(() => limpet.scene.clone(true)), [limpet.scene]);
+  const sideRefs = useRef<(THREE.Group | null)[]>([]);
+  const limpetW = useMemo(() => new THREE.Box3().setFromPoints(corners).getSize(new THREE.Vector3()).x, [corners]);
   const companion = useMemo(() => {
     const c = limpet.scene.clone(true);
     const cloned = new Map<THREE.Material, THREE.Material>();
@@ -289,6 +294,7 @@ function Models({ progress, magnet, contact, intro, heroLayout, layout, onReady 
       });
     walk(limpet.scene);
     walk(companion);
+    sides.forEach((c) => walk(c));
     walk(macbook.scene);
     phoneMats.current = [];
     walk(iphone.scene, phoneMats.current);
@@ -306,7 +312,7 @@ function Models({ progress, magnet, contact, intro, heroLayout, layout, onReady 
       invalidate();
     }).catch(() => {});
     return () => { cancelled = true; };
-  }, [limpet, macbook, iphone, cfg, tex]);
+  }, [limpet, macbook, iphone, cfg, tex, sides]);
 
   useLayoutEffect(() => {
     if (macInnerRef.current) { macInnerRef.current.matrixAutoUpdate = false; macInnerRef.current.matrix.copy(macStage); }
@@ -384,6 +390,16 @@ function Models({ progress, magnet, contact, intro, heroLayout, layout, onReady 
         L.quaternion.premultiply(introQ);
       }
     }
+    const sidesOn = !layout.mobile && size.width >= SIDES_MIN_WIDTH;
+    for (let i = 0; i < sides.length; i++) {
+      const g = sideRefs.current[i];
+      if (!g) continue;
+      if (!sidesOn) { g.visible = false; continue; }
+      placeSide(g, i, {
+        camDist: cfg.cams[0].pos.z, lookY: cfg.heroCamY, aspect: size.width / Math.max(1, size.height), width: limpetW,
+        progress: progress.current, introMs: intro.current > 0 ? performance.now() - intro.current : -1, introLen: INTRO_MS, drop: introDrop.current * 1.2,
+      });
+    }
     const Cp = companionRef.current;
     if (Cp) {
       const c = companionState(progress.current);
@@ -425,7 +441,7 @@ function Models({ progress, magnet, contact, intro, heroLayout, layout, onReady 
     camera.lookAt(camTarget.current);
 
     // on-demand rendering: keep frames coming only while something is still in motion on its own
-    const introActive = intro.current > 0 && performance.now() - intro.current < INTRO_MS + 50;
+    const introActive = intro.current > 0 && performance.now() - intro.current < INTRO_MS + Math.max(...SIDES_DELAY_MS) + 50;
     const camSettling = camPos.current.distanceToSquared(f.camPos) > 1e-9 || camTarget.current.distanceToSquared(f.camTarget) > 1e-9;
     if (introActive || camSettling || fitSettling.current || since < Math.max(CONTACT_MS, RING_MS)) invalidate();
   });
@@ -435,6 +451,11 @@ function Models({ progress, magnet, contact, intro, heroLayout, layout, onReady 
       <group ref={limpetRef}>
         <primitive object={limpet.scene} />
       </group>
+      {sides.map((c, i) => (
+        <group key={i} ref={(el) => { sideRefs.current[i] = el; }} visible={false}>
+          <primitive object={c} />
+        </group>
+      ))}
       <group ref={companionRef} visible={false}>
         <primitive object={companion} />
       </group>
