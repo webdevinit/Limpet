@@ -101,7 +101,6 @@ export const scenes = {
 export const whatItIs = {
   headline: 'Your storage.\nNo cloud.\nNo subscription.', // (existing site)
   body: 'Keep your apps and projects on Limpet. Open them like they were built in.',
-  caption: 'Right-click any folder. Offload to Limpet.',
 };
 
 export const craft = {

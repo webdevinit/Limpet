@@ -3,7 +3,6 @@
    wallpaper, the Limpet icon in the menu bar. Tilted in 3D, edges dissolve into the page.
    ------------------------------------------------------------------ */
 .demo-wrap { display: grid; gap: 6px; }
-.demo-caption { font-size: 14px; color: var(--muted); text-align: center; position: relative; z-index: 1; }
 .desk-scene { perspective: 1500px; perspective-origin: 40% 30%; margin: -6% -14% 2% -10%; }
 .desk {
   position: relative; aspect-ratio: 4 / 3.4; overflow: visible; background: none;

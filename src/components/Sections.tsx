@@ -14,7 +14,6 @@ export function WhatItIs({ reduced }: { reduced: boolean }) {
         </div>
         <div className="demo-wrap">
           <DesktopDemo reduced={reduced} />
-          <p className="demo-caption">{whatItIs.caption}</p>
         </div>
       </div>
     </section>
