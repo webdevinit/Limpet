@@ -12,6 +12,7 @@ import {
 import { measureHeroLayout, type HeroLayout } from './heroLayout';
 import { AdaptiveResolution } from './AdaptiveResolution';
 import { Backdrop } from './Backdrop';
+import { MotionAA, type MotionRef } from './MotionAA';
 import { Cable, type CableHandle } from './Cable';
 import { leatherTextures, leatherFromImage, grainTexture, fabricTexture, type LeatherMaps } from './textures';
 
@@ -43,6 +44,7 @@ export function preloadModels() {
 export default function StageCanvas(props: StageProps) {
   // keep rendering until the first frames are drawn, even if the stage is scrolled out of view
   const [warm, setWarm] = useState(false);
+  const motion = useRef({ moving: false, samples: 0, calls: 0, triangles: 0 }) as MotionRef;
   const onReady = useCallback(() => { setWarm(true); props.onReady(); }, [props.onReady]);
   // Some browsers (and device emulations) skip the ResizeObserver's initial callback, which leaves the
   // canvas unmeasured and the renderer never starts. A couple of synthetic resize events nudge the measurement.
@@ -65,7 +67,8 @@ export default function StageCanvas(props: StageProps) {
       <Suspense fallback={null}>
         <Studio lowPower={props.lowPower} />
         <Models {...props} onReady={onReady} />
-        <AdaptiveResolution progress={props.progress} intro={props.intro} introMs={INTRO_MS} lowPower={props.lowPower} stats={props.stats} />
+        <AdaptiveResolution progress={props.progress} intro={props.intro} introMs={INTRO_MS} lowPower={props.lowPower} stats={props.stats} motion={motion} />
+        <MotionAA motion={motion} />
         <InvalidateBridge handle={props.invalidate} />
       </Suspense>
     </Canvas>
@@ -74,9 +77,10 @@ export default function StageCanvas(props: StageProps) {
 
 /** A renderer on an opaque WebGL context (no alpha channel for the compositor to blend). */
 function createOpaqueRenderer(canvas: HTMLCanvasElement | OffscreenCanvas) {
-  const attrs: WebGLContextAttributes = { alpha: false, antialias: true, depth: true, stencil: false, premultipliedAlpha: true, preserveDrawingBuffer: false, powerPreference: 'high-performance' };
+  // no MSAA on the default framebuffer: the scene is multisampled in MotionAA's target (only at rest)
+  const attrs: WebGLContextAttributes = { alpha: false, antialias: false, depth: false, stencil: false, premultipliedAlpha: true, preserveDrawingBuffer: false, powerPreference: 'high-performance' };
   const context = (canvas.getContext('webgl2', attrs) ?? canvas.getContext('webgl', attrs)) as WebGL2RenderingContext | WebGLRenderingContext;
-  const renderer = new THREE.WebGLRenderer({ canvas, context, antialias: true, alpha: false, powerPreference: 'high-performance' });
+  const renderer = new THREE.WebGLRenderer({ canvas, context, antialias: false, alpha: false, depth: false, stencil: false, powerPreference: 'high-performance' });
   renderer.toneMapping = THREE.ACESFilmicToneMapping;
   renderer.toneMappingExposure = 0.98;
   renderer.setClearColor('#f7f7f9', 1);

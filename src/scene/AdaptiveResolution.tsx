@@ -26,10 +26,12 @@ export type AdaptiveProps = {
   introMs: number;
   lowPower: boolean;
   stats?: React.MutableRefObject<HTMLPreElement | null>;
+  /** shared with MotionAA: whether the sequence is moving this frame (and which MSAA it got) */
+  motion: React.MutableRefObject<{ moving: boolean; samples: number; calls: number; triangles: number }>;
 };
 
-export function AdaptiveResolution({ progress, intro, introMs, lowPower, stats }: AdaptiveProps) {
-  const { gl, setDpr, size, invalidate } = useThree();
+export function AdaptiveResolution({ progress, intro, introMs, lowPower, stats, motion }: AdaptiveProps) {
+  const { setDpr, size, invalidate } = useThree();
   const s = useRef({ applied: 0, target: 0, rest: 0, ema: 16, lastP: -1, prevMoving: false, lastChange: 0, lastStats: 0, frames: 0, restoreTimer: 0 });
   useEffect(() => () => window.clearTimeout(s.current.restoreTimer), []);
 
@@ -48,6 +50,7 @@ export function AdaptiveResolution({ progress, intro, introMs, lowPower, stats }
     const introActive = intro.current > 0 && now - intro.current < introMs + 200;
     const moving = Math.abs(p - st.lastP) > 1e-5 || introActive;
     st.lastP = p;
+    motion.current.moving = moving;
 
     // frames render on demand: only the gap between two consecutive moving frames is a frame time,
     // anything after an idle pause (or longer than 200 ms) is a gap and ignored
@@ -57,32 +60,32 @@ export function AdaptiveResolution({ progress, intro, introMs, lowPower, stats }
     st.frames++;
 
     if (moving) {
-      if (st.restoreTimer) { window.clearTimeout(st.restoreTimer); st.restoreTimer = 0; }
-      if (st.ema > SLOW_MS && now - st.lastChange > 250 && st.target > floorDpr + 0.01) {
-        st.target = Math.max(floorDpr, st.target * STEP_DOWN); st.lastChange = now; st.ema = 16;
-      } else if (st.ema < FAST_MS && now - st.lastChange > 700 && st.target < restDpr - 0.01) {
-        st.target = Math.min(restDpr, st.target * STEP_UP); st.lastChange = now; st.ema = 16;
-      }
-    } else if (!st.restoreTimer && Math.abs(st.target - restDpr) > 0.01) {
-      // back to full resolution shortly after the motion stops (and ask for the frame that shows it)
+      // 220 ms after the last moving frame: full resolution again and one more frame, rendered at rest
+      // (full dpr, MSAA) even if nothing else asks for it
+      if (st.restoreTimer) window.clearTimeout(st.restoreTimer);
       st.restoreTimer = window.setTimeout(() => {
         st.restoreTimer = 0;
         st.target = st.rest; st.lastChange = performance.now();
         if (Math.abs(st.target - st.applied) > 0.02) { st.applied = st.target; setDpr(st.target); }
         invalidate();
       }, 220);
+      if (st.ema > SLOW_MS && now - st.lastChange > 250 && st.target > floorDpr + 0.01) {
+        st.target = Math.max(floorDpr, st.target * STEP_DOWN); st.lastChange = now; st.ema = 16;
+      } else if (st.ema < FAST_MS && now - st.lastChange > 700 && st.target < restDpr - 0.01) {
+        st.target = Math.min(restDpr, st.target * STEP_UP); st.lastChange = now; st.ema = 16;
+      }
     }
     if (Math.abs(st.target - st.applied) > 0.02) { st.applied = st.target; setDpr(st.target); invalidate(); }
 
     const el = stats?.current;
     if (el && now - st.lastStats > 250) {
       st.lastStats = now;
-      const r = gl.info.render;
+      const r = motion.current;
       const px = Math.round(w * st.applied) * Math.round(h * st.applied);
       el.textContent =
         `${(1000 / st.ema).toFixed(0)} fps · ${st.ema.toFixed(1)} ms\n` +
         `dpr ${st.applied.toFixed(2)} (rest ${restDpr.toFixed(2)}) · ${(px / 1e6).toFixed(2)} MP\n` +
-        `${r.calls} draw calls · ${(r.triangles / 1000).toFixed(0)}k tris · ${moving ? 'moving' : 'idle'} · frame #${st.frames}`;
+        `${r.calls} draw calls · ${(r.triangles / 1000).toFixed(0)}k tris · msaa ${motion.current.samples}x · ${moving ? 'moving' : 'idle'} · frame #${st.frames}`;
     }
   });
   return null;
