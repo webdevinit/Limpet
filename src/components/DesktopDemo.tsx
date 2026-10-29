@@ -62,12 +62,16 @@ export function DesktopDemo({ reduced }: { reduced: boolean }) {
     let rects: { top: number; bottom: number; left: number; right: number }[] = [];
     let tx = FOLDER.x + 4, ty = FOLDER.y + 10; // last pointer position on the target item (kept after the menu closes)
     const pct = (px: number, total: number) => (px / total) * 100;
+    // menu items in the desk's own layout coordinates (offsets), the same space the pointer moves in. Screen rects
+    // would be wrong twice: the desk is tilted in 3D, and the menu is still scaling open when it is first measured.
     const measure = () => {
-      const d = desk.getBoundingClientRect();
+      const W = desk.offsetWidth, H = desk.offsetHeight;
+      if (!W || !H) return;
+      const mx = menu.offsetLeft, my = menu.offsetTop;
       rects = itemRefs.current.map((el) => {
         if (!el) return { top: -1, bottom: -1, left: -1, right: -1 };
-        const r = el.getBoundingClientRect();
-        return { top: pct(r.top - d.top, d.height), bottom: pct(r.bottom - d.top, d.height), left: pct(r.left - d.left, d.width), right: pct(r.right - d.left, d.width) };
+        const l = mx + el.offsetLeft, t = my + el.offsetTop;
+        return { top: pct(t, H), bottom: pct(t + el.offsetHeight, H), left: pct(l, W), right: pct(l + el.offsetWidth, W) };
       });
     };
     const setHover = (i: number) => {
