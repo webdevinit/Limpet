@@ -35,6 +35,8 @@ export const site = {
 
 export const firstBatch = {
   units: 250,
+  /** slim orange banner under the header; links to the pricing section */
+  banner: 'Limited founders price. First batch of 250.',
 };
 
 export const pricing = {

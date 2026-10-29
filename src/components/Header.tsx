@@ -1,5 +1,5 @@
 import { useRef, useState } from 'react';
-import { site, pricing } from '../content';
+import { site, pricing, firstBatch } from '../content';
 import { BagIcon, LimpetMark, PatPendingFace, WINK_MS } from './ui';
 
 /** Same layout as patpending.com: Limpet brand left, Pat Pending face centred, bag + Pre-order right. */
@@ -30,6 +30,7 @@ export function Header() {
           <a className="btn small" href={site.links.preorder} target="_blank" rel="noopener">{pricing.orderStatus}</a>
         </div>
       </nav>
+      <a className="founders-banner" href="#pricing">{firstBatch.banner}</a>
     </header>
   );
 }
