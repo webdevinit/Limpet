@@ -148,15 +148,6 @@ p { margin: 0; }
 .stage-sound:hover { color: var(--ink); background: rgba(29,29,31,.05); }
 .stage-sound:focus-visible { outline: 2px solid var(--orange); outline-offset: 2px; }
 .stage-sound[aria-pressed='false'] { opacity: .7; }
-/* ?soundlab */
-.sound-lab { position: absolute; right: 16px; top: 76px; z-index: 6; width: min(360px, calc(100% - 32px)); padding: 14px 16px; border-radius: 14px;
-  background: rgba(255,255,255,.96); box-shadow: 0 10px 30px rgba(0,0,0,.12); font-size: 13px; color: var(--ink); }
-.sound-lab fieldset { border: 0; margin: 0 0 10px; padding: 0; display: grid; gap: 6px; }
-.sound-lab legend { font-weight: 600; margin-bottom: 4px; }
-.sound-lab label { display: grid; grid-template-columns: auto auto 1fr; align-items: center; gap: 8px; }
-.sound-lab button { font: inherit; font-size: 12px; padding: 3px 10px; border-radius: 999px; border: 1px solid #d2d2d7; background: #fff; cursor: pointer; }
-.sound-lab p { margin: 4px 0 0; color: var(--muted); font-size: 12px; }
-.stage-stats { position: absolute; left: 12px; bottom: 12px; z-index: 4; margin: 0; padding: 8px 10px; border-radius: 8px; background: rgba(29,29,31,.82); color: #fff; font: 11px/1.45 ui-monospace, Menlo, Consolas, monospace; pointer-events: none; white-space: pre; }
 
 /* overlay copy: real HTML, absolutely positioned, faded by scroll */
 .overlay { position: absolute; inset: 0; pointer-events: none; z-index: 2; }

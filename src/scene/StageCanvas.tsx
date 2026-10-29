@@ -30,8 +30,6 @@ export type StageProps = {
   lowPower: boolean;
   active: boolean;
   onReady: () => void;
-  /** optional on-screen perf readout (`?stats=1`) */
-  stats?: React.MutableRefObject<HTMLPreElement | null>;
   /** filled by the canvas: requests one frame (the stage renders on demand) */
   invalidate: React.MutableRefObject<(() => void) | null>;
 };
@@ -70,7 +68,7 @@ export default function StageCanvas(props: StageProps) {
       <Suspense fallback={null}>
         <Studio lowPower={props.lowPower} />
         <Models {...props} onReady={onReady} />
-        <AdaptiveResolution progress={props.progress} intro={props.intro} introMs={INTRO_MS} lowPower={props.lowPower} stats={props.stats} />
+        <AdaptiveResolution progress={props.progress} intro={props.intro} introMs={INTRO_MS} lowPower={props.lowPower} />
         <InvalidateBridge handle={props.invalidate} />
       </Suspense>
     </Canvas>

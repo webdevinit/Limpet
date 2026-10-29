@@ -8,22 +8,7 @@
 
 export type Device = 'mac' | 'phone';
 
-/** the variants per device; the first is the default. `?soundlab` on the page lets you audition and pick them. */
-export const VARIANTS: Record<Device, { id: string; label: string }[]> = {
-  mac: [
-    { id: 'blopp', label: 'Blopp: round, low, a soft click on top' },
-    { id: 'thunk', label: 'Thunk: deeper and duller' },
-    { id: 'knock', label: 'Knock: woody, a little brighter' },
-  ],
-  phone: [
-    { id: 'klack', label: 'Klack: a dry snap, highs only, no tail (MagSafe-like)' },
-    { id: 'tick', label: 'Tick: small and bright' },
-    { id: 'snap', label: 'Snap: a fuller click' },
-  ],
-};
-
 const PREF = 'limpet-sound';
-const VARIANT_PREF = (d: Device) => `limpet-sound-${d}`;
 const VOLUME = 0.5;
 
 const read = (k: string) => { try { return localStorage.getItem(k); } catch { return null; } };
@@ -72,12 +57,6 @@ export function setSoundEnabled(on: boolean) {
 }
 export function onSoundChange(l: (on: boolean) => void) { listeners.add(l); return () => { listeners.delete(l); }; }
 
-export const currentVariant = (d: Device) => {
-  const v = read(VARIANT_PREF(d));
-  return VARIANTS[d].some((x) => x.id === v) ? v! : VARIANTS[d][0].id;
-};
-export const setVariant = (d: Device, id: string) => write(VARIANT_PREF(d), id);
-
 // ---------------------------------------------------------------- synthesis
 /** a pitched blip: frequency glides from f0 to f1, sharp attack, exponential decay */
 function tone(t: number, f0: number, f1: number, dur: number, gain: number, type: OscillatorType = 'sine') {
@@ -110,23 +89,16 @@ function click(t: number, freq: number, q: number, dur: number, gain: number, ty
   s.stop(t + dur + 0.02);
 }
 
-const SYNTHS: Record<string, (t: number) => void> = {
+const SYNTHS: Record<Device, (t: number) => void> = {
   // MacBook: the shell lands on the dock plate
-  blopp: (t) => { tone(t, 150, 62, 0.17, 0.9); tone(t, 310, 130, 0.07, 0.22); click(t, 1800, 1.2, 0.014, 0.2); },
-  thunk: (t) => { tone(t, 112, 52, 0.22, 1.0); click(t, 900, 0.8, 0.022, 0.32); },
-  knock: (t) => { tone(t, 230, 175, 0.09, 0.55, 'triangle'); tone(t, 460, 350, 0.05, 0.18); click(t, 3000, 2, 0.009, 0.16); },
+  mac: (t) => { tone(t, 150, 62, 0.17, 0.9); tone(t, 310, 130, 0.07, 0.22); click(t, 1800, 1.2, 0.014, 0.2); },
   // iPhone: the magnets catch on the glass back
   // highs only: two high-passed transients a few ms apart (the snap of the magnets), no tonal body, gone within a few ms
-  klack: (t) => { click(t, 5500, 0.7, 0.004, 0.75, 'highpass'); click(t + 0.003, 9000, 0.7, 0.003, 0.35, 'highpass'); },
-  tick: (t) => { click(t, 6000, 2, 0.007, 0.42); tone(t, 920, 700, 0.03, 0.22); },
-  snap: (t) => { click(t, 3000, 1, 0.016, 0.5); tone(t, 380, 210, 0.09, 0.5); },
+  phone: (t) => { click(t, 5500, 0.7, 0.004, 0.75, 'highpass'); click(t + 0.003, 9000, 0.7, 0.003, 0.35, 'highpass'); },
 };
 
 /** plays the docking sound for a device (silent until audio is unlocked, or when the visitor turned it off) */
-export function playDock(device: Device, variant = currentVariant(device), force = false) {
-  if ((!enabled && !force) || !ctx || !master || ctx.state !== 'running') return;
-  SYNTHS[variant]?.(ctx.currentTime + 0.005);
+export function playDock(device: Device) {
+  if (!enabled || !ctx || !master || ctx.state !== 'running') return;
+  SYNTHS[device](ctx.currentTime + 0.005);
 }
-
-/** for the sound lab: unlock (the click that calls this is the gesture) and play right away */
-export function audition(device: Device, variant: string) { ensureContext(); setTimeout(() => playDock(device, variant, true), 30); }

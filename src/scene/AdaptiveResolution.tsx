@@ -5,7 +5,7 @@
  * which matters on 4K/Retina). While the scene is moving (scroll, intro) the frame time is watched: if
  * frames get slow the backing store is stepped down, never below MOTION_FLOOR pixels; if they are fast
  * again it steps back up. 220 ms after the motion stops the full resolution is restored, so the still
- * image is always crisp. Also feeds the optional on-screen stats readout (`?stats=1`).
+ * image is always crisp.
  */
 import { useEffect, useRef } from 'react';
 import { useFrame, useThree } from '@react-three/fiber';
@@ -25,12 +25,11 @@ export type AdaptiveProps = {
   intro: React.MutableRefObject<number>;
   introMs: number;
   lowPower: boolean;
-  stats?: React.MutableRefObject<HTMLPreElement | null>;
 };
 
-export function AdaptiveResolution({ progress, intro, introMs, lowPower, stats }: AdaptiveProps) {
-  const { gl, setDpr, size, invalidate } = useThree();
-  const s = useRef({ applied: 0, target: 0, rest: 0, ema: 16, lastP: -1, prevMoving: false, lastChange: 0, lastStats: 0, frames: 0, restoreTimer: 0 });
+export function AdaptiveResolution({ progress, intro, introMs, lowPower }: AdaptiveProps) {
+  const { setDpr, size, invalidate } = useThree();
+  const s = useRef({ applied: 0, target: 0, rest: 0, ema: 16, lastP: -1, prevMoving: false, lastChange: 0, frames: 0, restoreTimer: 0 });
   useEffect(() => () => window.clearTimeout(s.current.restoreTimer), []);
 
   useFrame((_, dt) => {
@@ -73,17 +72,6 @@ export function AdaptiveResolution({ progress, intro, introMs, lowPower, stats }
       }, 220);
     }
     if (Math.abs(st.target - st.applied) > 0.02) { st.applied = st.target; setDpr(st.target); invalidate(); }
-
-    const el = stats?.current;
-    if (el && now - st.lastStats > 250) {
-      st.lastStats = now;
-      const r = gl.info.render;
-      const px = Math.round(w * st.applied) * Math.round(h * st.applied);
-      el.textContent =
-        `${(1000 / st.ema).toFixed(0)} fps · ${st.ema.toFixed(1)} ms\n` +
-        `dpr ${st.applied.toFixed(2)} (rest ${restDpr.toFixed(2)}) · ${(px / 1e6).toFixed(2)} MP\n` +
-        `${r.calls} draw calls · ${(r.triangles / 1000).toFixed(0)}k tris · ${moving ? 'moving' : 'idle'} · frame #${st.frames}`;
-    }
   });
   return null;
 }
