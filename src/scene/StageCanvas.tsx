@@ -338,9 +338,10 @@ function Models({ progress, intro, heroLayout, layout, onReady }: StageProps) {
     const L = limpetRef.current, M = macRef.current, P = phoneRef.current;
     if (L) {
       L.position.copy(f.limpetPos); L.quaternion.copy(f.limpetQuat);
-      if (intro.current > 0 && progress.current < R.hero[1]) {
-        // floats up from below the screen edge once the loader is gone, slow and smooth, turning gently as it settles
-        const e = Math.min(1, (performance.now() - intro.current) / INTRO_MS);
+      if (progress.current < R.hero[1]) {
+        // floats up from below the screen edge once the loader fades, slow and smooth, turning gently as it settles;
+        // until the intro starts it waits fully below the edge, so it never shows at rest first
+        const e = intro.current > 0 ? Math.min(1, (performance.now() - intro.current) / INTRO_MS) : 0;
         const k = 1 - Math.pow(1 - e, 4);
         L.position.y += (1 - k) * -introDrop.current;
         introQ.setFromAxisAngle(yAxis, (1 - k) * -0.45);

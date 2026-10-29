@@ -20,7 +20,9 @@ export default function App() {
   const invalidate = useRef<(() => void) | null>(null);
   const { progress } = useProgress();
   const onLoaded = useCallback(() => setModelsReady(true), []);
-  const onHidden = useCallback(() => { setLoaderGone(true); intro.current = performance.now(); invalidate.current?.(); }, []);
+  // the Limpet starts floating in while the loader fades, so it is never seen at rest before the intro
+  const onLeaving = useCallback(() => { if (!intro.current) intro.current = performance.now(); invalidate.current?.(); }, []);
+  const onHidden = useCallback(() => { setLoaderGone(true); onLeaving(); }, [onLeaving]);
 
   useEffect(() => {
     if (!caps.ready || useStatic) return;
@@ -31,7 +33,7 @@ export default function App() {
 
   return (
     <>
-      {!loaderGone && <Loader progress={useStatic ? 100 : progress} done={done} onHidden={onHidden} />}
+      {!loaderGone && <Loader progress={useStatic ? 100 : progress} done={done} onLeaving={onLeaving} onHidden={onHidden} />}
       <a className="skip-link" href="#main">Skip to content</a>
       <Header />
       <main id="main">

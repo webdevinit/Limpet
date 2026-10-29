@@ -7,16 +7,17 @@ import { LimpetMark, PatPendingFace } from './ui';
 
 export const MIN_MS = 2000;
 
-export function Loader({ progress, done, onHidden }: { progress: number; done: boolean; onHidden: () => void }) {
+export function Loader({ progress, done, onLeaving, onHidden }: { progress: number; done: boolean; onLeaving?: () => void; onHidden: () => void }) {
   const [minElapsed, setMinElapsed] = useState(false);
   const [leaving, setLeaving] = useState(false);
   useEffect(() => { const t = setTimeout(() => setMinElapsed(true), MIN_MS); return () => clearTimeout(t); }, []);
   useEffect(() => {
     if (!(done && minElapsed)) return;
     setLeaving(true);
+    onLeaving?.();
     const t = setTimeout(onHidden, 650);
     return () => clearTimeout(t);
-  }, [done, minElapsed, onHidden]);
+  }, [done, minElapsed, onLeaving, onHidden]);
   useEffect(() => {
     document.documentElement.classList.add('is-loading');
     return () => document.documentElement.classList.remove('is-loading');

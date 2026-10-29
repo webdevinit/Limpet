@@ -12,6 +12,14 @@ import { emptyHeroLayout, measureHeroLayout } from './heroLayout';
 
 const StageCanvas = lazy(() => import('./StageCanvas'));
 
+/**
+ * The sequence follows the scroll position, but never faster than this (progress per second): a hard flick
+ * still plays every move instead of jumping to the end. The full sequence takes at least 1 / MAX_SPEED s.
+ */
+const MAX_SPEED = 0.2;
+/** below the cap the sequence eases towards the scroll position at this rate (1/s), so small scrolls stay smooth */
+const FOLLOW = 9;
+
 export function Stage({ caps, onLoaded, intro, invalidate }: { caps: Capabilities; onLoaded: () => void; intro: React.MutableRefObject<number>; invalidate: React.MutableRefObject<(() => void) | null> }) {
   const trackRef = useRef<HTMLElement>(null);
   const progress = useRef(0);
@@ -38,11 +46,25 @@ export function Stage({ caps, onLoaded, intro, invalidate }: { caps: Capabilitie
     if (!el) return;
     let raf = 0;
     let lastP = -1;
-    const update = () => {
+    let shown = -1; // progress the stage currently plays (chases the scroll position at a capped speed)
+    let lastT = 0;
+    const update = (now: number) => {
       raf = 0;
       const rect = el.getBoundingClientRect();
       const vh = window.innerHeight;
-      const p = Math.min(1, Math.max(0, -rect.top / (rect.height - vh)));
+      const target = Math.min(1, Math.max(0, -rect.top / (rect.height - vh)));
+      const dt = lastT ? Math.min(0.1, (now - lastT) / 1000) : 1 / 60;
+      lastT = now;
+      // off screen (or on the first measure, e.g. a restored scroll position) there is nothing to watch: jump
+      const visible = rect.bottom > 0 && rect.top < vh;
+      if (shown < 0 || !visible) shown = target;
+      else {
+        const d = target - shown;
+        const step = Math.min(Math.abs(d), Math.max(Math.abs(d) * FOLLOW, 0.002) * dt, MAX_SPEED * dt);
+        shown += Math.sign(d) * step;
+        if (Math.abs(target - shown) < 1e-5) shown = target;
+      }
+      const p = shown;
       progress.current = p;
       // the canvas renders on demand: ask for a frame only when the sequence actually moved
       if (p !== lastP) { lastP = p; invalidate.current?.(); }
@@ -59,9 +81,12 @@ export function Stage({ caps, onLoaded, intro, invalidate }: { caps: Capabilitie
       });
       const a = activeScene(p);
       dots.current?.querySelectorAll('i').forEach((d, i) => d.classList.toggle('active', i === a));
+      // keep chasing until the sequence has caught up with the scroll position
+      if (shown !== target) raf = requestAnimationFrame(update);
+      else lastT = 0;
     };
     const onScroll = () => { if (!raf) raf = requestAnimationFrame(update); };
-    update();
+    update(performance.now());
     window.addEventListener('scroll', onScroll, { passive: true });
     window.addEventListener('resize', onScroll);
     document.fonts?.ready.then(onScroll);

@@ -155,8 +155,10 @@ export function stageConfig(layout: Layout): StageConfig {
       cam(0.14, [0, 0.0, 0.37], [0, -0.01, 0]),
       cam(0.28, [0.0, 0.12, 0.7], [0.07, 0.05, 0], 1.25),
       cam(0.58, [0.03, 0.11, 0.66], [0.07, 0.05, 0], 1.25),
-      cam(0.72, [0.0, 0.13, 0.64], [0.04, 0.0, 0], 1.12),
-      cam(0.91, [0.0, 0.13, 0.62], [0.04, 0.0, 0], 1.12),
+      cam(0.7, [0.0, 0.13, 0.64], [0.04, 0.0, 0], 1.12),
+      // docking on the iPhone: the camera closes in on phone and Limpet so they fill the frame, then holds
+      cam(0.8, [m ? 0 : 0.02, 0.1, 0.5], [0.06, 0.012, 0], 1.26), // phones: a gentler, centred zoom (the copy sits underneath)
+      cam(0.91, [m ? 0 : 0.02, 0.1, 0.48], [0.06, 0.022, 0], 1.28),
       cam(0.98, [0, 0.04, 0.5], [0, 0.0, 0]),
       cam(1.0, [0, 0.04, 0.5], [0, 0.0, 0]),
     ],
