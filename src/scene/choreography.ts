@@ -46,11 +46,11 @@ export const R = {
   phoneEnter: [0.61, 0.7],      // arrives only once the Limpet is well in front of it
   flip: [0.8, 0.9],
   phoneHold: [0.9, 0.92],
-  phoneOut: [0.92, 0.97],
+  phoneOut: [0.93, 0.975],  // the phone stays a moment after the Limpet seats (its callout), then recedes
   final: [0.92, 1.0],
-  finalMove: [0.92, 0.99],   // from the phone to its place in the pair
-  finalSpin: [0.927, 0.98],  // one full turn on the way, before the pair forms
-  pairIn: [0.972, 0.997],    // the second Limpet drifts in once the turn is done
+  finalMove: [0.93, 0.99],   // from the phone to its place in the pair
+  finalSpin: [0.937, 0.982], // one full turn on the way, before the pair forms
+  pairIn: [0.975, 0.998],    // the second Limpet drifts in once the turn is done
 } as const;
 
 export const SNAP = 0.007; // metres the Limpet snaps right (along the plug axis) while settling
@@ -130,7 +130,7 @@ export function textState(p: number): { o: number; y: number }[] {
   return [
     fade(-1, -0.5, 0.01, 0.07),
     fade(0.27, 0.33, 0.55, 0.6),
-    fade(0.74, 0.79, 0.9, 0.93),
+    fade(0.74, 0.79, 0.925, 0.948),
     fade(R.pairIn[0], R.pairIn[1] - 0.005, 2, 3),
   ];
 }
@@ -418,7 +418,7 @@ export function dockedPose(device: 'mac' | 'phone', cfg: StageConfig, macStage: 
 export function dockProximity(p: number, mag: MagnetPose | undefined): { mac: number; phone: number } {
   const byId = (id: MagnetId) => MAGNETS.find((z) => z.id === id)!;
   let mac = p < R.unsettle[0] ? byId('mac-in').param(p) : byId('mac-out').param(p);
-  let phone = byId('phone-in').param(p) * (1 - smooth(span(p, [R.final[0], R.final[0] + 0.03])));
+  let phone = byId('phone-in').param(p) * (1 - smooth(span(p, [R.finalMove[0], R.finalMove[0] + 0.03])));
   if (mag?.id === 'mac-in' || mag?.id === 'mac-out') mac = clamp01(mag.k);
   if (mag?.id === 'phone-in') phone = clamp01(mag.k);
   return { mac, phone };

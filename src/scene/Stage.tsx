@@ -48,8 +48,8 @@ export function Stage({ caps, onLoaded, intro, invalidate }: { caps: Capabilitie
   const progress = useRef(0);
   /** the magnet's pose while it pulls the Limpet onto a dock (read by the canvas) */
   const magnet = useRef(noMagnet());
-  /** callout beside the docked Limpet (positioned by the canvas, which knows where the Limpet is on screen) */
-  const fact = useRef<HTMLDivElement | null>(null);
+  /** callouts beside the docked Limpet: [MacBook, iPhone] (positioned by the canvas, which knows where the Limpet is) */
+  const facts = useRef<(HTMLDivElement | null)[]>([]);
   /** the moment the Limpet last touched a dock (performance.now, 0 = never): the canvas flashes the LED and nudges the camera */
   const contact = useRef<{ at: number; device: Device }>({ at: 0, device: 'mac' });
   const blocks = useRef<(HTMLDivElement | null)[]>([]);
@@ -217,7 +217,7 @@ export function Stage({ caps, onLoaded, intro, invalidate }: { caps: Capabilitie
         <div className="stage-canvas" aria-hidden="true">
           {caps.webgl && (
             <Suspense fallback={null}>
-              <StageCanvas progress={progress} magnet={magnet} contact={contact} fact={fact} intro={intro} heroLayout={heroLayout} layout={layout} lowPower={caps.lowPower} active={active} onReady={onReady} invalidate={invalidate} />
+              <StageCanvas progress={progress} magnet={magnet} contact={contact} facts={facts} intro={intro} heroLayout={heroLayout} layout={layout} lowPower={caps.lowPower} active={active} onReady={onReady} invalidate={invalidate} />
             </Suspense>
           )}
         </div>
@@ -259,11 +259,15 @@ export function Stage({ caps, onLoaded, intro, invalidate }: { caps: Capabilitie
 
         <div className="stage-progress" ref={dots} aria-hidden="true"><i className="active" /><i /><i /><i /></div>
         {caps.webgl && (
-          <div className="fact" ref={fact}>
-            <i className="fact-dot" aria-hidden="true" />
-            <i className="fact-line" aria-hidden="true" />
-            <p className="fact-label">{scenes.macbook.fact}</p>
-          </div>
+          <>
+            {[scenes.macbook.fact, scenes.iphone.fact].map((text, i) => (
+              <div key={i} className="fact" data-dir={i === 0 ? 'down' : 'right'} ref={(el) => { facts.current[i] = el; }}>
+                <i className="fact-dot" aria-hidden="true" />
+                <i className="fact-line" aria-hidden="true" />
+                <p className="fact-label">{text}</p>
+              </div>
+            ))}
+          </>
         )}
         {caps.webgl && <SoundToggle />}
       </div>

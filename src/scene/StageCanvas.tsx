@@ -34,8 +34,8 @@ export type StageProps = {
   onReady: () => void;
   /** filled by the canvas: requests one frame (the stage renders on demand) */
   invalidate: React.MutableRefObject<(() => void) | null>;
-  /** callout beside the docked Limpet on the MacBook: shown while docked, placed under the Limpet each frame */
-  fact?: React.MutableRefObject<HTMLDivElement | null>;
+  /** callouts beside the docked Limpet, [MacBook, iPhone]: shown while docked, placed next to the Limpet each frame */
+  facts?: React.MutableRefObject<(HTMLDivElement | null)[]>;
 };
 
 const DRACO = '/draco/';
@@ -184,6 +184,8 @@ const HERO_MAX_AIR_BIG = 0.11;
 const HERO_WIDTH_OF_PHONE = 0.68;
 /** the float-in from below the screen edge after the loader (ms) */
 export const INTRO_MS = 2600;
+/** room kept for a callout label to the right of its line (px) */
+const FACT_LABEL_W = 200;
 /** contact feedback (LED flash, camera push) lasts this long (ms) */
 const CONTACT_MS = 450;
 /** camera push at contact: share of the camera's distance to its target (peak) */
@@ -210,7 +212,7 @@ function modelCorners(root: THREE.Object3D): THREE.Vector3[] {
   return c;
 }
 
-function Models({ progress, magnet, contact, fact, intro, heroLayout, layout, onReady }: StageProps) {
+function Models({ progress, magnet, contact, facts, intro, heroLayout, layout, onReady }: StageProps) {
   const limpet = useGLTF(MODELS.limpet, DRACO);
   const macbook = useGLTF(MODELS.macbook, DRACO);
   const iphone = useGLTF(MODELS.iphone, DRACO);
@@ -263,7 +265,7 @@ function Models({ progress, magnet, contact, fact, intro, heroLayout, layout, on
   const yAxis = useMemo(() => new THREE.Vector3(0, 1, 0), []);
   const kickDir = useMemo(() => new THREE.Vector3(), []);
   const factV = useMemo(() => new THREE.Vector3(), []);
-  const factLast = useRef({ on: false, x: -1, y: -1, len: -1 });
+  const factLast = useRef([0, 1].map(() => ({ on: false, x: -1, y: -1, len: -1 })));
   const compQuat = useMemo(() => companionQuat(), []);
   // Scene 4 companion: a second instance of the shell showing the leather side (own materials so it can fade in)
   // start screen, laptops and up: two more Limpets at the edges (clones sharing geometry and materials)
@@ -344,38 +346,59 @@ function Models({ progress, magnet, contact, fact, intro, heroLayout, layout, on
   // fallback: if frames cannot be drawn for a while (heavy paints elsewhere), release the loader anyway
   useEffect(() => { const t = setTimeout(fireReady, 2500); return () => clearTimeout(t); }, []);
   /**
-   * Callout while the Limpet sits on the MacBook (LED on): a dot on the shell, a thin line straight down past the
-   * hinge, the label underneath in the free space below the laptop. Shown / hidden by a class (CSS does the timing);
-   * moved only when the Limpet's place on screen changes.
+   * Callouts while the Limpet is docked: a dot on the shell and a hairline to the label in free space. On the
+   * MacBook (LED on) the line runs straight down past the hinge to below the laptop; on the iPhone (seated on
+   * MagSafe) it runs right, past the phone's edge. Shown / hidden by a class (CSS does the timing); moved only when
+   * the Limpet's place on screen changes. Not on phones, where the scene copy takes that space.
    */
   const placeFact = () => {
-    const el = fact?.current, L = limpetRef.current;
-    if (!el || !L) return;
-    const p = progress.current;
-    const on = frame.macVisible && frame.limpetPowered > 0.5 && p > R.tiltDown[0] && p < R.unsettle[1] && !layout.mobile;
-    const last = factLast.current;
-    if (on) {
-      L.updateMatrixWorld();
-      camera.updateMatrixWorld();
-      let top = Infinity, bottom = -Infinity, left = Infinity, right = -Infinity;
-      for (const c of corners) {
-        factV.copy(c).applyMatrix4(L.matrixWorld).project(camera);
-        const x = ((factV.x + 1) / 2) * size.width, y = ((1 - factV.y) / 2) * size.height;
-        top = Math.min(top, y); bottom = Math.max(bottom, y); left = Math.min(left, x); right = Math.max(right, x);
+    const els = facts?.current, L = limpetRef.current;
+    if (!els || !L) return;
+    const p = progress.current, mag = magnet.current;
+    const on = [
+      frame.macVisible && frame.limpetPowered > 0.5 && p > R.tiltDown[0] && p < R.unsettle[1],
+      frame.phoneVisible && frame.rigT > 0.9 && p > R.flip[0] && p < R.finalMove[0] && (mag.id !== 'phone-in' || mag.contact),
+    ].map((v) => v && !layout.mobile);
+    let measured = false, top = 0, bottom = 0, left = 0, right = 0;
+    for (let i = 0; i < 2; i++) {
+      const el = els[i];
+      if (!el) continue;
+      const last = factLast.current[i];
+      if (on[i]) {
+        if (!measured) {
+          measured = true;
+          L.updateMatrixWorld();
+          camera.updateMatrixWorld();
+          top = Infinity; bottom = -Infinity; left = Infinity; right = -Infinity;
+          for (const c of corners) {
+            factV.copy(c).applyMatrix4(L.matrixWorld).project(camera);
+            const x = ((factV.x + 1) / 2) * size.width, y = ((1 - factV.y) / 2) * size.height;
+            top = Math.min(top, y); bottom = Math.max(bottom, y); left = Math.min(left, x); right = Math.max(right, x);
+          }
+        }
+        let ax: number, ay: number, len: number;
+        if (i === 0) {
+          ax = Math.round((left + right) / 2);
+          ay = Math.round(top + (bottom - top) * 0.62);
+          // the label sits a clear step below the Limpet, never closer than ~90 px to the stage's bottom edge
+          const labelY = Math.min(size.height - 92, Math.max(bottom + 64, ay + 96));
+          len = Math.max(24, Math.round(labelY - ay - 14));
+        } else {
+          ax = Math.round(left + (right - left) * 0.58);
+          ay = Math.round((top + bottom) / 2);
+          // past the phone's edge (a little wider than the Limpet), the label kept inside the stage
+          const labelX = Math.min(size.width - 24 - FACT_LABEL_W, Math.max(right + 64, ax + 120));
+          len = Math.max(24, Math.round(labelX - ax - 14));
+        }
+        if (ax !== last.x || ay !== last.y || len !== last.len) {
+          el.style.setProperty('--ax', `${ax}px`);
+          el.style.setProperty('--ay', `${ay}px`);
+          el.style.setProperty('--len', `${len}px`);
+          last.x = ax; last.y = ay; last.len = len;
+        }
       }
-      const ax = Math.round((left + right) / 2);
-      const ay = Math.round(top + (bottom - top) * 0.62);
-      // the label sits a clear step below the Limpet, never closer than ~90 px to the stage's bottom edge
-      const labelY = Math.min(size.height - 92, Math.max(bottom + 64, ay + 96));
-      const len = Math.max(24, Math.round(labelY - ay - 14));
-      if (ax !== last.x || ay !== last.y || len !== last.len) {
-        el.style.setProperty('--ax', `${ax}px`);
-        el.style.setProperty('--ay', `${ay}px`);
-        el.style.setProperty('--len', `${len}px`);
-        last.x = ax; last.y = ay; last.len = len;
-      }
+      if (on[i] !== last.on) { last.on = on[i]; el.classList.toggle('is-on', on[i]); }
     }
-    if (on !== last.on) { last.on = on; el.classList.toggle('is-on', on); }
   };
 
   useFrame((_, dt) => {

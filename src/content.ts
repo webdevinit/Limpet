@@ -80,6 +80,8 @@ export const scenes = {
     headline: 'Your studio.\nOn the go.', // (existing site)
     body: 'Snap onto your phone. Record ProRes straight to Limpet, or move a year’s photos in one click.', // (existing site)
     detail: 'MagSafe holds it. USB-C connects it.', // (existing site)
+    /** callout next to the Limpet on the iPhone (96 × 63 × 8.5 mm, from the supplied CAD model) */
+    fact: 'Just 8.5 mm thin',
   },
   batch: {
     headline: 'Built by hand.\n250 of them.',
