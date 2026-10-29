@@ -32,7 +32,9 @@ const TARGET = MENU_ITEMS.findIndex((i) => i.target);
 
 // timeline (ms)
 const T = { move: 700, atFolder: 1800, menu: 2000, walk: 2400, reach: 4300, click: 4550, closed: 4850, offload: 5450, synced: 9800, leave: 11400, end: 12400 };
-const FOLDER = { x: 33, y: 17 }; // percent of the desk
+const FOLDER = { x: 33, y: 17 }; // percent of the desk (phones: see FOLDER_Y_PHONE)
+const FOLDER_Y_PHONE = 9; // the long menu must stay inside the short desk
+const folderY = () => (typeof window !== 'undefined' && window.matchMedia('(max-width: 480px)').matches ? FOLDER_Y_PHONE : FOLDER.y);
 const START = { x: 12, y: 84 };
 const ease = (s: number) => (s < 0.5 ? 2 * s * s : 1 - Math.pow(-2 * s + 2, 2) / 2);
 const lerp = (a: number, b: number, s: number) => a + (b - a) * s;
@@ -44,6 +46,7 @@ export function DesktopDemo({ reduced }: { reduced: boolean }) {
   const folderRef = useRef<HTMLDivElement>(null);
   const syncRef = useRef<HTMLSpanElement>(null);
   const itemRefs = useRef<(HTMLDivElement | null)[]>([]);
+  const fy = folderY();
 
   useEffect(() => {
     const desk = deskRef.current, pointer = pointerRef.current, menu = menuRef.current, folder = folderRef.current, sync = syncRef.current;
@@ -67,7 +70,7 @@ export function DesktopDemo({ reduced }: { reduced: boolean }) {
     let hovered = -1;
     let deskW = 0, deskH = 0;
     let rects: { top: number; bottom: number; left: number; right: number }[] = [];
-    let tx = FOLDER.x + 4, ty = FOLDER.y + 10; // last pointer position on the target item (kept after the menu closes)
+    let tx = FOLDER.x + 4, ty = fy + 10; // last pointer position on the target item (kept after the menu closes)
     const pct = (px: number, total: number) => (px / total) * 100;
     // menu items in the desk's own layout coordinates (offsets), the same space the pointer moves in. Screen rects
     // would be wrong twice: the desk is tilted in 3D, and the menu is still scaling open when it is first measured.
@@ -93,14 +96,14 @@ export function DesktopDemo({ reduced }: { reduced: boolean }) {
       let x = START.x, y = START.y;
       let menuOpen = false, flash = false, offloaded = false, syncing = false, selected = false;
       if (t < T.move) { /* idle */ }
-      else if (t < T.atFolder) { const s = ease((t - T.move) / (T.atFolder - T.move)); x = lerp(START.x, FOLDER.x + 4, s); y = lerp(START.y, FOLDER.y + 10, s); }
-      else if (t < T.walk) { x = FOLDER.x + 4; y = FOLDER.y + 10; menuOpen = t >= T.menu; selected = menuOpen; }
+      else if (t < T.atFolder) { const s = ease((t - T.move) / (T.atFolder - T.move)); x = lerp(START.x, FOLDER.x + 4, s); y = lerp(START.y, fy + 10, s); }
+      else if (t < T.walk) { x = FOLDER.x + 4; y = fy + 10; menuOpen = t >= T.menu; selected = menuOpen; }
       else if (t < T.reach) {
         menuOpen = true; selected = true;
         if (!rects.length || rects[0].top < 0) measure();
         const first = rects[0], target = rects[TARGET];
         const s = ease((t - T.walk) / (T.reach - T.walk));
-        const x0 = FOLDER.x + 4, y0 = FOLDER.y + 10;
+        const x0 = FOLDER.x + 4, y0 = fy + 10;
         const xm = (first.left + first.right) / 2 + 2, ym0 = (first.top + first.bottom) / 2, ym1 = (target.top + target.bottom) / 2;
         // a short diagonal onto the first item, then straight down the list
         const sIn = Math.min(1, s / 0.18), sDown = Math.max(0, (s - 0.18) / 0.82);
@@ -131,25 +134,39 @@ export function DesktopDemo({ reduced }: { reduced: boolean }) {
     const onResize = () => { rects = []; deskW = 0; deskH = 0; };
     window.addEventListener('resize', onResize);
     return () => { cancelAnimationFrame(raf); io.disconnect(); window.removeEventListener('resize', onResize); };
-  }, [reduced]);
+  }, [reduced, fy]);
 
   return (
     <div className="desk-scene" role="img" aria-label="macOS desktop: right-clicking the Project Photos folder shows an Offload to Limpet option. After choosing it, the folder stays in place, gets a small Limpet badge and a cloud next to its name, and the Limpet icon in the menu bar shows a spinning ring while the files move.">
-      <div className="desk dark" ref={deskRef}>
+      <div className="desk" ref={deskRef}>
         <Wallpaper />
         <MenuBar syncRef={syncRef} />
+        <div className="desk-widgets" aria-hidden="true">
+          <div className="widget cal">
+            <div className="cal-h"><span>September</span><span className="cal-y">2026</span></div>
+            <div className="cal-g">
+              {['S', 'M', 'T', 'W', 'T', 'F', 'S'].map((d, i) => <i key={'d' + i}>{d}</i>)}
+              {Array.from({ length: 30 }, (_, i) => <span key={i} className={i === 9 ? 'today' : ''}>{i + 1}</span>)}
+            </div>
+          </div>
+          <div className="widget weather">
+            <div className="w-top"><span className="w-city">Memphis</span><span className="w-icon">☀︎</span></div>
+            <div className="w-temp">82°</div>
+            <div className="w-note">Sunny · H:88° L:71°</div>
+          </div>
+        </div>
 
-        <div className="desk-folder" style={{ left: `${FOLDER.x - 16}%`, top: `${FOLDER.y}%` }}>
+        <div className="desk-folder" style={{ left: `${FOLDER.x - 16}%`, top: `${fy}%` }}>
           <FolderIcon />
           <span className="label">Design<br />Competitions</span>
         </div>
-        <div className="desk-folder" ref={folderRef} style={{ left: `${FOLDER.x}%`, top: `${FOLDER.y}%` }}>
+        <div className="desk-folder" ref={folderRef} style={{ left: `${FOLDER.x}%`, top: `${fy}%` }}>
           <FolderIcon />
           <span className="limpet-badge" aria-hidden="true"><LimpetDeviceMark /></span>
           <span className="label">Project Photos<CloudMark /></span>
         </div>
 
-        <div className="ctx" ref={menuRef} style={{ left: `${FOLDER.x + 5}%`, top: `${FOLDER.y + 10}%` }} aria-hidden="true">
+        <div className="ctx" ref={menuRef} style={{ left: `${FOLDER.x + 5}%`, top: `${fy + 10}%` }} aria-hidden="true">
           {MENU_ITEMS.map((it, idx) => {
             if (it.tags) return (
               <div className="ctx-tags" key="tags" ref={(el) => (itemRefs.current[idx] = el)}>
@@ -248,34 +265,22 @@ function FolderIcon() {
   );
 }
 
-/** an evening forest, drawn: tall trunks lit from the side, fog on the ground (no photo is used) */
 function Wallpaper() {
-  const far = [60, 170, 290, 420, 760, 880, 1010, 1130];
-  const leaves: [number, number, number][] = [[120, 180, 220], [340, 120, 260], [620, 90, 300], [900, 160, 240], [1100, 110, 220]];
   return (
     <svg className="desk-wall" viewBox="0 0 1200 900" preserveAspectRatio="xMidYMid slice" aria-hidden="true">
       <defs>
-        <linearGradient id="wbg" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stopColor="#1b2a21" /><stop offset=".55" stopColor="#223527" /><stop offset="1" stopColor="#3c4a34" /></linearGradient>
-        <linearGradient id="wtrunk" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stopColor="#5a3420" /><stop offset=".45" stopColor="#b1623a" /><stop offset=".7" stopColor="#8a4a2a" /><stop offset="1" stopColor="#3e2416" /></linearGradient>
-        <linearGradient id="wtrunk2" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stopColor="#2f1b11" /><stop offset=".5" stopColor="#6b3d25" /><stop offset="1" stopColor="#2a1810" /></linearGradient>
-        <linearGradient id="wfog" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stopColor="#c9d6b8" stopOpacity="0" /><stop offset=".6" stopColor="#c9d6b8" stopOpacity=".55" /><stop offset="1" stopColor="#dfe6cf" stopOpacity=".8" /></linearGradient>
-        <radialGradient id="wlight" cx=".62" cy=".3" r=".6"><stop offset="0" stopColor="#f0d9a6" stopOpacity=".55" /><stop offset="1" stopColor="#f0d9a6" stopOpacity="0" /></radialGradient>
-        <filter id="wblur"><feGaussianBlur stdDeviation="14" /></filter>
-        <filter id="wblur2"><feGaussianBlur stdDeviation="4" /></filter>
+        <linearGradient id="wbg" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stopColor="#dcd5cb" /><stop offset=".5" stopColor="#c9c5c8" /><stop offset="1" stopColor="#8e97ad" /></linearGradient>
+        <linearGradient id="wb1" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stopColor="#f3ede4" /><stop offset="1" stopColor="#bfb3a6" /></linearGradient>
+        <linearGradient id="wb2" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stopColor="#dfe4ec" /><stop offset="1" stopColor="#7d8aa6" /></linearGradient>
+        <linearGradient id="wb3" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stopColor="#ffffff" stopOpacity=".9" /><stop offset="1" stopColor="#a8b0c2" stopOpacity=".6" /></linearGradient>
+        <filter id="wblur"><feGaussianBlur stdDeviation="6" /></filter>
       </defs>
       <rect width="1200" height="900" fill="url(#wbg)" />
-      <rect width="1200" height="900" fill="url(#wlight)" />
-      <g opacity=".55" filter="url(#wblur2)">
-        {far.map((x, i) => <rect key={i} x={x} y="-20" width={18 + (i % 3) * 8} height="940" fill="url(#wtrunk2)" />)}
-      </g>
-      <g opacity=".7">
-        {leaves.map(([cx, cy, r], i) => <ellipse key={i} cx={cx} cy={cy} rx={r} ry={r * 0.55} fill="#2b4a2f" filter="url(#wblur)" />)}
-      </g>
-      <path d="M540 -20 L640 -20 L700 920 L470 920 Z" fill="url(#wtrunk)" />
-      <path d="M1030 -20 L1200 -20 L1200 920 L1090 920 Z" fill="url(#wtrunk)" opacity=".9" />
-      <path d="M-20 -20 L60 -20 L90 920 L-20 920 Z" fill="url(#wtrunk2)" />
-      <rect x="0" y="560" width="1200" height="340" fill="url(#wfog)" />
-      <ellipse cx="600" cy="760" rx="700" ry="90" fill="#e6ecd8" opacity=".35" filter="url(#wblur)" />
+      <path d="M-100 700 C 250 640, 380 380, 520 200 C 640 40, 900 120, 1300 260 L 1300 1000 L -100 1000 Z" fill="url(#wb2)" opacity=".85" filter="url(#wblur)" />
+      <path d="M-100 780 C 300 720, 420 460, 560 300 C 680 160, 950 200, 1300 340 L 1300 1000 L -100 1000 Z" fill="url(#wb1)" opacity=".9" />
+      <path d="M-100 840 C 320 800, 470 560, 600 410 C 720 280, 980 300, 1300 420 L 1300 1000 L -100 1000 Z" fill="url(#wb3)" />
+      <path d="M-100 900 C 360 870, 520 660, 640 520 C 760 380, 1010 400, 1300 500 L 1300 1000 L -100 1000 Z" fill="#7f8aa3" opacity=".8" />
+      <path d="M 180 1000 C 420 840, 560 680, 680 560" stroke="#fff" strokeOpacity=".5" strokeWidth="2" fill="none" />
     </svg>
   );
 }

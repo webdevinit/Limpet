@@ -8,7 +8,7 @@
 .desk {
   position: relative; aspect-ratio: 4 / 3.4; overflow: visible; background: none;
   transform: rotateX(9deg) rotateY(-13deg) rotateZ(1.5deg); transform-style: preserve-3d;
-  font-family: var(--font); font-size: 11px; color: #f5f5f7; user-select: none;
+  font-family: var(--font); font-size: 11px; color: #1d1d1f; user-select: none;
   -webkit-mask-image: radial-gradient(ellipse 78% 74% at 50% 46%, #000 48%, rgba(0,0,0,.6) 70%, transparent 100%);
   mask-image: radial-gradient(ellipse 78% 74% at 50% 46%, #000 48%, rgba(0,0,0,.6) 70%, transparent 100%);
 }
@@ -16,11 +16,14 @@
 /* menu bar: dark, white glyphs, the Limpet status icon on the right */
 .desk-menubar {
   position: absolute; top: 0; left: 0; right: 0; height: 7.5%; display: flex; align-items: center; gap: 13px; padding: 0 4% 0 5%;
-  background: rgba(16,18,20,.55); color: #fff; font-size: 11px; font-weight: 500;
+  background: none; color: #1d1d1f; font-size: 11px; font-weight: 500;
 }
 .desk-menubar .apple { font-size: 13px; margin-right: 1px; }
 .desk-menubar b { font-weight: 700; }
-.desk-menubar .right { margin-left: auto; display: flex; align-items: center; gap: 11px; }
+.desk-menubar .right {
+  margin-left: auto; display: flex; align-items: center; gap: 9px; padding: 3px 10px 3px 9px; border-radius: 999px;
+  background: rgba(30,30,34,.8); color: #fff; box-shadow: inset 0 0 0 .5px rgba(255,255,255,.18);
+}
 .desk-menubar .ic { width: 13px; height: 13px; display: block; }
 .desk-menubar .ic.batt { width: 22px; }
 .desk-menubar .clock { font-size: 11px; font-weight: 500; letter-spacing: -.01em; margin-left: 2px; }
@@ -30,13 +33,29 @@
 .limpet-status .sync { width: 10px; height: 10px; border-radius: 50%; border: 1.6px solid #fff; border-right-color: transparent; opacity: 0; transition: opacity .25s; }
 .limpet-status .sync.on { opacity: 1; animation: limpet-sync .9s linear infinite; }
 @keyframes limpet-sync { to { transform: rotate(360deg); } }
+.desk-widgets { position: absolute; right: 5%; top: 11%; width: 31%; display: grid; gap: 9px; padding: 0; -webkit-mask-image: none; mask-image: none; opacity: 1; }
+.widget {
+  border-radius: 14px; padding: 9px 11px; color: #1d1d1f;
+  background: linear-gradient(180deg, rgba(255,255,255,.78), rgba(255,255,255,.62));
+  box-shadow: 0 8px 22px rgba(0,0,0,.10), inset 0 0 0 .5px rgba(255,255,255,.6);
+}
+.widget.cal .cal-h { display: flex; justify-content: space-between; color: #ff3b30; font-weight: 700; font-size: 9.5px; text-transform: uppercase; letter-spacing: .02em; margin-bottom: 3px; }
+.widget.cal .cal-y { color: #6e6e73; font-weight: 600; text-transform: none; }
+.widget.cal .cal-g { display: grid; grid-template-columns: repeat(7, 1fr); gap: 1px 0; font-size: 8px; text-align: center; }
+.widget.cal .cal-g i { font-style: normal; color: #8e8e93; font-weight: 600; }
+.widget.cal .cal-g span { line-height: 12px; }
+.widget.cal .cal-g .today { background: #ff3b30; color: #fff; border-radius: 50%; width: 12px; margin: 0 auto; font-weight: 600; }
+.widget.weather { background: linear-gradient(160deg, rgba(120,170,235,.85), rgba(60,110,200,.85)); color: #fff; box-shadow: 0 8px 22px rgba(0,0,0,.14), inset 0 0 0 .5px rgba(255,255,255,.35); }
+.widget.weather .w-top { display: flex; justify-content: space-between; font-weight: 600; font-size: 10px; }
+.widget.weather .w-temp { font-size: 24px; font-weight: 300; line-height: 1.15; }
+.widget.weather .w-note { font-size: 8.5px; opacity: .92; }
 /* folders: white labels; the offloaded one gets a Limpet badge and a cloud after its name */
 .desk-folder { position: absolute; width: 12%; display: grid; justify-items: center; gap: 2px; }
 .desk-folder .folder-svg { width: 100%; filter: drop-shadow(0 2px 3px rgba(0,0,0,.35)); }
 .desk-folder .label { font-size: 9.5px; font-weight: 600; color: #fff; text-shadow: 0 1px 2px rgba(0,0,0,.6); padding: 1px 5px; border-radius: 4px; text-align: center; line-height: 1.2; display: inline-flex; align-items: center; gap: 3px; white-space: nowrap; transition: background .15s; }
 .desk-folder.selected .label { background: #1f6ff0; text-shadow: none; }
-.desk-folder .label .cloud { width: 11px; height: 8px; display: none; }
-.desk-folder.offloaded .label .cloud { display: block; }
+.desk-folder .label .cloud { width: 11px; height: 8px; display: block; visibility: hidden; }
+.desk-folder.offloaded .label .cloud { visibility: visible; }
 .limpet-badge {
   position: absolute; right: 6%; bottom: 29%; width: 24%; aspect-ratio: 1; color: #f2f2f4;
   display: grid; place-items: center; filter: drop-shadow(0 1px 1.5px rgba(0,0,0,.5));
@@ -71,7 +90,7 @@
 .desk-dock i { width: 18px; height: 18px; border-radius: 5px; display: block; box-shadow: inset 0 0 0 .5px rgba(255,255,255,.25); }
 .desk-pointer { position: absolute; left: 0; top: 0; width: 18px; height: 18px; margin: -2px 0 0 -2px; z-index: 3; transition: none; will-change: transform; filter: drop-shadow(0 1px 1.5px rgba(0,0,0,.4)); }
 @media (max-width: 860px) { .desk-scene { margin: -2% -8% 0; } }
-@media (max-width: 480px) { .ctx-item { font-size: 8.5px; height: 13px; } .desk-menubar { font-size: 9px; gap: 8px; } .desk-menubar .clock { font-size: 9px; } .desk-dock i { width: 12px; height: 12px; } }
+@media (max-width: 480px) { .desk-widgets { display: none; } .ctx-item { font-size: 8.5px; height: 12px; } .ctx-item.sep { margin-bottom: 5px; } .ctx-item.sep::after { bottom: -3px; } .ctx-tags { padding: 2px 8px 3px; } .desk-menubar { font-size: 9px; gap: 8px; } .desk-menubar .clock { font-size: 9px; } .desk-dock i { width: 12px; height: 12px; } }
 
 /* ------------------------------------------------------------------
    Craft video + configure teaser (same build-up as the existing site)
