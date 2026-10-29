@@ -8,8 +8,9 @@ html.is-loading { overflow: hidden; }
 }
 .loader.leaving { opacity: 0; visibility: hidden; }
 .loader-inner { display: grid; justify-items: center; gap: 22px; width: min(320px, 80vw); text-align: center; }
-.loader-mark { position: relative; width: 150px; height: 96px; }
-.loader-shell { position: absolute; inset: 0; width: 100%; height: 100%; animation: shell-cling 2.4s var(--ease) infinite; transform-origin: 50% 100%; }
+/* the shell sits on the Pat Pending face like a hat: smaller, on top, the face right under its brim */
+.loader-mark { position: relative; width: 120px; height: 82px; margin-top: -10px; }
+.loader-shell { position: absolute; left: calc(50% - 54px); top: 0; width: 108px; height: 63px; animation: shell-cling 2.4s var(--ease) infinite; transform-origin: 50% 100%; }
 .loader-shell .draw { stroke-dasharray: 2200; stroke-dashoffset: 2200; animation: draw 1.6s var(--ease) forwards; }
 .loader-shell .ridges path { stroke-dasharray: 520; stroke-dashoffset: 520; animation: draw-ridge 1s var(--ease) forwards; }
 .loader-shell .ridges path:nth-child(1) { animation-delay: .5s; }
@@ -17,7 +18,7 @@ html.is-loading { overflow: hidden; }
 .loader-shell .ridges path:nth-child(3) { animation-delay: .7s; }
 .loader-shell .ridges path:nth-child(4) { animation-delay: .8s; }
 .loader-shell .ridges path:nth-child(5) { animation-delay: .9s; }
-.loader-face { position: absolute; left: 50%; bottom: 6px; width: 46px; height: 19px; transform: translateX(-50%); opacity: 0; animation: face-in .5s var(--ease) 1.1s forwards; }
+.loader-face { position: absolute; left: 50%; top: 61px; width: 46px; height: 19px; transform: translateX(-50%); opacity: 0; animation: face-in .5s var(--ease) 1.1s forwards; }
 .loader-face .eye { transform-origin: 50% 40%; animation: blink 3.2s ease-in-out 1.8s infinite; }
 .loader-line { margin: 0; font-size: 17px; font-weight: 600; letter-spacing: -0.02em; color: var(--ink); opacity: 0; animation: face-in .6s var(--ease) 1.2s forwards; }
 .loader-line span { color: var(--orange-ink); }
