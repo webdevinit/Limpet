@@ -165,6 +165,8 @@ p { margin: 0; }
 .ob-top { left: 50%; top: calc(var(--header-h) + 2vh); transform: translateX(-50%); width: min(780px, calc(100vw - 2 * var(--gutter))); max-width: none; text-align: center; }
 .ob-top .lead { max-width: 330px; margin: 16px auto 0; }
 .ob-top .cta-row { justify-content: center; margin-top: 24px; }
+/* big screens: the copy sits a little lower (the canvas pulls the Limpet closer to it, see BIG_W / BIG_H) */
+@media (min-width: 1400px) and (min-height: 820px) { .ob-top { top: calc(var(--header-h) + 5vh); } }
 
 /* 2 + 3 · MacBook / iPhone: copy left, product right */
 .ob-left { left: var(--gutter); top: 50%; transform: translateY(-50%); }

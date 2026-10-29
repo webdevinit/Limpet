@@ -173,6 +173,9 @@ const HERO_MAX_VISIBLE = 0.55;
 const HERO_MIN_VISIBLE = 0.25;
 /** the extra air between button and Limpet never grows beyond this share of the viewport height (tall windows) */
 const HERO_MAX_AIR = 0.2;
+/** big screens (keep in sync with the `.ob-top` media query in styles.css): copy a little lower, Limpet closer to it */
+const BIG_W = 1400, BIG_H = 820;
+const HERO_MAX_AIR_BIG = 0.11;
 /** on phones the headline is narrow, so the Limpet is sized against the viewport instead */
 const HERO_WIDTH_OF_PHONE = 0.68;
 /** the float-in from below the screen edge after the loader (ms) */
@@ -356,7 +359,7 @@ function Models({ progress, magnet, contact, intro, heroLayout, layout, onReady 
         const targetW = Math.min(wantW, maxH * (wPx / hPx));
         dist = THREE.MathUtils.clamp(dist * (wPx / targetW), 0.09, cfg.heroCamDist);
         cfg.cams[0].pos.z = cfg.cams[1].pos.z = dist;
-        const desiredTop = THREE.MathUtils.clamp(screenBottom - HERO_MAX_VISIBLE * hPx, topUnderCopy, topUnderCopy + HERO_MAX_AIR * H);
+        const desiredTop = THREE.MathUtils.clamp(screenBottom - HERO_MAX_VISIBLE * hPx, topUnderCopy, topUnderCopy + (size.width >= BIG_W && H >= BIG_H ? HERO_MAX_AIR_BIG : HERO_MAX_AIR) * H);
         const pxPerM = H / (2 * dist * TAN_HALF_FOV);
         const yBefore = cfg.heroPos.y;
         cfg.heroPos.y = THREE.MathUtils.clamp(cfg.heroPos.y - (desiredTop - top) / pxPerM, -0.6, 0.1);
