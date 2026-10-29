@@ -19,6 +19,8 @@ export type StageProps = {
   progress: React.MutableRefObject<number>;
   /** pose of a running magnet snap (overrides the scroll pose of the Limpet while it pulls) */
   magnet: React.MutableRefObject<MagnetPose>;
+  /** when the Limpet last touched a dock (performance.now; 0 = never) */
+  contact: React.MutableRefObject<{ at: number; device: 'mac' | 'phone' }>;
   /** performance.now() at which the intro (Limpet gliding in) started; 0 = not yet */
   intro: React.MutableRefObject<number>;
   /** where the hero copy ends (measured by Stage); bottom 0 = not measured yet */
@@ -176,6 +178,10 @@ const HERO_MAX_AIR = 0.2;
 const HERO_WIDTH_OF_PHONE = 0.68;
 /** the float-in from below the screen edge after the loader (ms) */
 export const INTRO_MS = 2600;
+/** contact feedback (LED flash, camera push) lasts this long (ms) */
+const CONTACT_MS = 450;
+/** camera push at contact: share of the camera's distance to its target (peak) */
+const KICK = 0.012;
 const TAN_HALF_FOV = Math.tan(THREE.MathUtils.degToRad(15));
 const ONE = new THREE.Vector3(1, 1, 1);
 
@@ -198,7 +204,7 @@ function modelCorners(root: THREE.Object3D): THREE.Vector3[] {
   return c;
 }
 
-function Models({ progress, magnet, intro, heroLayout, layout, onReady }: StageProps) {
+function Models({ progress, magnet, contact, intro, heroLayout, layout, onReady }: StageProps) {
   const limpet = useGLTF(MODELS.limpet, DRACO);
   const macbook = useGLTF(MODELS.macbook, DRACO);
   const iphone = useGLTF(MODELS.iphone, DRACO);
@@ -235,6 +241,7 @@ function Models({ progress, magnet, intro, heroLayout, layout, onReady }: StageP
   const camTarget = useRef(new THREE.Vector3());
   const introQ = useMemo(() => new THREE.Quaternion(), []);
   const yAxis = useMemo(() => new THREE.Vector3(0, 1, 0), []);
+  const kickDir = useMemo(() => new THREE.Vector3(), []);
   const compQuat = useMemo(() => companionQuat(), []);
   // Scene 4 companion: a second instance of the shell showing the leather side (own materials so it can fade in)
   const companion = useMemo(() => {
@@ -383,19 +390,28 @@ function Models({ progress, magnet, intro, heroLayout, layout, onReady }: StageP
         if (m.transparent !== needs || Math.abs(m.opacity - op) > 0.001) { m.transparent = needs; m.opacity = op; }
       }
     }
-    if (led.current) led.current.emissiveIntensity = f.limpetPowered * 2.5;
+    // contact: the LED flashes once as the magnets catch, then settles to its normal glow
+    const since = contact.current.at ? performance.now() - contact.current.at : Infinity;
+    const flash = since < CONTACT_MS ? Math.exp(-since / 110) : 0;
+    if (led.current) led.current.emissiveIntensity = f.limpetPowered * 2.5 + flash * 4;
     cable.current?.update(f.connectorPos, f.connectorDir, f.connectorUp, f.phoneOpacity);
 
     const k = 1 - Math.exp(-dt * 7);
     camPos.current.lerp(f.camPos, k);
     camTarget.current.lerp(f.camTarget, k);
     camera.position.copy(camPos.current);
+    // contact: a short push towards the dock, gone again within a quarter second (felt more than seen)
+    if (since < CONTACT_MS) {
+      const push = (Math.exp(-since / 80) - Math.exp(-since / 14)) * KICK;
+      kickDir.subVectors(camTarget.current, camPos.current);
+      camera.position.addScaledVector(kickDir, push);
+    }
     camera.lookAt(camTarget.current);
 
     // on-demand rendering: keep frames coming only while something is still in motion on its own
     const introActive = intro.current > 0 && performance.now() - intro.current < INTRO_MS + 50;
     const camSettling = camPos.current.distanceToSquared(f.camPos) > 1e-9 || camTarget.current.distanceToSquared(f.camTarget) > 1e-9;
-    if (introActive || camSettling || fitSettling.current) invalidate();
+    if (introActive || camSettling || fitSettling.current || since < CONTACT_MS) invalidate();
   });
 
   return (

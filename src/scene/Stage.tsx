@@ -6,6 +6,7 @@
 import { lazy, Suspense, useCallback, useEffect, useRef, useState } from 'react';
 import { activeScene, textState, MAGNETS, noMagnet, type MagnetZone } from './choreography';
 import { ScrollLock, pull, bump, pullMs, BUMP_MS, HOLD_MS, QUIET_MS, MAX_HOLD_MS } from './magnet';
+import { installAudioUnlock, playDock, soundEnabled, setSoundEnabled, onSoundChange, VARIANTS, currentVariant, setVariant, audition, type Device } from './sound';
 import { hero, scenes, pricing, site } from '../content';
 import { Button, Lines } from '../components/ui';
 import type { Capabilities } from '../hooks/useCapabilities';
@@ -28,6 +29,9 @@ export function Stage({ caps, onLoaded, intro, invalidate }: { caps: Capabilitie
   const progress = useRef(0);
   /** the magnet's pose while it pulls the Limpet onto a dock (read by the canvas) */
   const magnet = useRef(noMagnet());
+  /** the moment the Limpet last touched a dock (performance.now, 0 = never): the canvas flashes the LED and nudges the camera */
+  const contact = useRef<{ at: number; device: Device }>({ at: 0, device: 'mac' });
+  const showSoundLab = typeof window !== 'undefined' && new URLSearchParams(window.location.search).has('soundlab');
   const blocks = useRef<(HTMLDivElement | null)[]>([]);
   /** hero copy's bottom edge and the stage's offset from the page top (px); the canvas keeps the resting Limpet below the copy and inside the first screen */
   const heroLayout = useRef(emptyHeroLayout());
@@ -55,9 +59,10 @@ export function Stage({ caps, onLoaded, intro, invalidate }: { caps: Capabilitie
     let lastT = 0;
     let wasLive = false;
     const lock = new ScrollLock();
+    installAudioUnlock();
     const armed = MAGNETS.map(() => false);
     /** the running snap: the magnet pulls the pose from k0 to 1 on a timer, then holds the page for a moment */
-    let snap: { zone: MagnetZone; k0: number; p0: number; t0: number; pullMs: number } | null = null;
+    let snap: { zone: MagnetZone; k0: number; p0: number; t0: number; pullMs: number; touched: boolean } | null = null;
     /** in-page navigation (anchor links): follow the scroll directly, no magnets, no speed cap */
     let nav = { on: false, since: 0 };
     let lastScrollAt = 0;
@@ -93,6 +98,7 @@ export function Stage({ caps, onLoaded, intro, invalidate }: { caps: Capabilitie
           shown = snap.p0 + (z.dock - snap.p0) * (t / snap.pullMs);
         } else {
           const after = t - snap.pullMs;
+          if (!snap.touched) { snap.touched = true; contact.current = { at: now, device: z.device }; playDock(z.device); }
           k = 1 - bump(after);
           shown = z.dock;
           const quiet = now - lock.lastInput > QUIET_MS;
@@ -122,7 +128,7 @@ export function Stage({ caps, onLoaded, intro, invalidate }: { caps: Capabilitie
           const toward = z.dock > z.far ? dir > 0 : dir < 0;
           if (armed[i] && toward) {
             armed[i] = false;
-            snap = { zone: z, k0: k, p0: shown, t0: now, pullMs: pullMs(z.device, k, z.trigger) };
+            snap = { zone: z, k0: k, p0: shown, t0: now, pullMs: pullMs(z.device, k, z.trigger), touched: false };
             magnet.current = { id: z.id, k, contact: false };
             lock.lock(docY(z.dock));
           }
@@ -187,7 +193,7 @@ export function Stage({ caps, onLoaded, intro, invalidate }: { caps: Capabilitie
         <div className="stage-canvas" aria-hidden="true">
           {caps.webgl && (
             <Suspense fallback={null}>
-              <StageCanvas progress={progress} magnet={magnet} intro={intro} heroLayout={heroLayout} layout={layout} lowPower={caps.lowPower} active={active} onReady={onReady} stats={showStats ? statsRef : undefined} invalidate={invalidate} />
+              <StageCanvas progress={progress} magnet={magnet} contact={contact} intro={intro} heroLayout={heroLayout} layout={layout} lowPower={caps.lowPower} active={active} onReady={onReady} stats={showStats ? statsRef : undefined} invalidate={invalidate} />
             </Suspense>
           )}
         </div>
@@ -229,6 +235,8 @@ export function Stage({ caps, onLoaded, intro, invalidate }: { caps: Capabilitie
 
         <div className="stage-progress" ref={dots} aria-hidden="true"><i className="active" /><i /><i /><i /></div>
         {showStats && <pre className="stage-stats" ref={statsRef} aria-hidden="true" />}
+        {caps.webgl && <SoundToggle />}
+        {showSoundLab && <SoundLab />}
       </div>
     </section>
   );
@@ -238,6 +246,42 @@ function OverlayBlock({ children, className, refCb, id }: { children: React.Reac
   return (
     <div className={`overlay-block ${className}`} ref={refCb} id={id} style={{ opacity: 0, translate: '0 var(--ty, 0px)' }} data-visible="false">
       {children}
+    </div>
+  );
+}
+
+/** Speaker button on the stage: the docking sounds on / off (remembered per browser). */
+function SoundToggle() {
+  const [on, setOn] = useState(soundEnabled);
+  useEffect(() => onSoundChange(setOn), []);
+  return (
+    <button type="button" className="stage-sound" aria-pressed={on} aria-label={on ? 'Mute docking sounds' : 'Play docking sounds'} title={on ? 'Sound on' : 'Sound off'} onClick={() => setSoundEnabled(!on)}>
+      <svg viewBox="0 0 20 20" width="16" height="16" aria-hidden="true" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round">
+        <path d="M3.5 7.5h3l4-3.5v12l-4-3.5h-3z" fill="currentColor" stroke="none" />
+        {on ? (<><path d="M13.5 7.2a3.6 3.6 0 0 1 0 5.6" /><path d="M15.6 5a6.6 6.6 0 0 1 0 10" /></>) : (<><path d="M13.5 7.5l5 5" /><path d="M18.5 7.5l-5 5" /></>)}
+      </svg>
+    </button>
+  );
+}
+
+/** `?soundlab`: audition the docking sound variants and pick one per device (stored in this browser). */
+function SoundLab() {
+  const [pick, setPick] = useState(() => ({ mac: currentVariant('mac'), phone: currentVariant('phone') }));
+  return (
+    <div className="sound-lab" role="dialog" aria-label="Sound lab">
+      {(['mac', 'phone'] as Device[]).map((d) => (
+        <fieldset key={d}>
+          <legend>{d === 'mac' ? 'MacBook dock' : 'iPhone MagSafe'}</legend>
+          {VARIANTS[d].map((v) => (
+            <label key={v.id}>
+              <input type="radio" name={`snd-${d}`} checked={pick[d] === v.id} onChange={() => { setVariant(d, v.id); setPick((x) => ({ ...x, [d]: v.id })); audition(d, v.id); }} />
+              <button type="button" onClick={() => audition(d, v.id)}>Play</button>
+              <span><b>{v.id}</b> {v.label.split(': ')[1]}</span>
+            </label>
+          ))}
+        </fieldset>
+      ))}
+      <p>The pick is used when the Limpet docks in this browser.</p>
     </div>
   );
 }
