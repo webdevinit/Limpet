@@ -125,7 +125,7 @@ p { margin: 0; }
 /* ------------------------------------------------------------------
    3D stage (scroll-driven sequence)
    ------------------------------------------------------------------ */
-.stage-track { position: relative; height: 560vh; }
+.stage-track { position: relative; height: 660vh; } /* 560vh + 100vh finale room (FINALE_EXTRA_VH) */
 .stage {
   position: sticky; top: 0; height: 100vh; height: 100svh; overflow: hidden;
   background:
@@ -183,7 +183,7 @@ p { margin: 0; }
 .price-line .amount { font-size: 28px; font-weight: 650; letter-spacing: -0.04em; }
 
 @media (max-width: 860px) {
-  .stage-track { height: 520vh; }
+  .stage-track { height: 620vh; } /* 520vh + 100vh finale room */
   .ob-left, .ob-center { left: var(--gutter); right: var(--gutter); width: auto; max-width: none; top: auto; bottom: 7vh; transform: none; text-align: left; }
   .ob-left.backdrop { padding: 0; margin: 0; background: none; }
   .ob-left::before, .ob-center::before { content: ''; position: absolute; inset: -40px -40px -60px; z-index: -1;

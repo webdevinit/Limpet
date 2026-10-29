@@ -10,7 +10,9 @@
  *   Scene 3  iPhone enters with its cable; Limpet plugs
  *            onto the connector, flips over the edge and
  *            snaps to the MagSafe area                     0.64 – 0.92
- *   Scene 4  iPhone recedes, Limpet settles                0.92 – 1.00
+ *   Scene 4  iPhone recedes; the Limpet turns once on its
+ *            way to the centre, then the second Limpet
+ *            joins it in the final pair                    0.92 – 1.00
  *
  * Everything is a function of p, so scrolling back plays the transitions in reverse.
  * Units are metres; the models share one world (Y up, camera on +Z).
@@ -44,6 +46,9 @@ export const R = {
   phoneHold: [0.9, 0.92],
   phoneOut: [0.92, 0.97],
   final: [0.92, 1.0],
+  finalMove: [0.92, 0.99],   // from the phone to its place in the pair
+  finalSpin: [0.927, 0.98],  // one full turn on the way, before the pair forms
+  pairIn: [0.972, 0.997],    // the second Limpet drifts in once the turn is done
 } as const;
 
 export const SNAP = 0.007; // metres the Limpet snaps right (along the plug axis) while settling
@@ -124,13 +129,13 @@ export function textState(p: number): { o: number; y: number }[] {
     fade(-1, -0.5, 0.01, 0.07),
     fade(0.27, 0.33, 0.55, 0.6),
     fade(0.74, 0.79, 0.9, 0.93),
-    fade(0.95, 0.985, 2, 3),
+    fade(R.pairIn[0], R.pairIn[1] - 0.005, 2, 3),
   ];
 }
 
 /** Scene-4 companion render (leather side, a plane beside and just behind the 3D model): opacity and drift. */
 export function companionState(p: number): { o: number; drift: number; s: number } {
-  const i = smooth(span(p, [0.93, 0.985]));
+  const i = smooth(span(p, R.pairIn));
   return { o: i, drift: (1 - i) * 0.05, s: 0.96 + i * 0.04 };
 }
 /** Half the gap between the two Limpets in the final pair (metres). */
@@ -511,12 +516,15 @@ export function evaluate(p: number, cfg: StageConfig, macStage: THREE.Matrix4, p
     f.limpetPowered = 1;
     cableFollows = true;
   } else {
-    const s = easeInOut(span(p, R.final));
+    const s = easeInOut(span(p, R.finalMove));
     f.rigT = 1;
     phonePose(1, 0, phoneStage, vA, qT, f); // cable stays seated on the (receding) phone
     finalPose(cfg, vB, qB);
     f.limpetPos.lerpVectors(vA, vB, s);
     f.limpetQuat.slerpQuaternions(qT, qB, s);
+    // one full turn about the vertical axis on the way (360°, so it ends exactly in the pair pose)
+    qP.setFromAxisAngle(Y, Math.PI * 2 * easeInOut(span(p, R.finalSpin)));
+    f.limpetQuat.premultiply(qP);
     f.limpetPowered = 1 - s;
     cableFollows = true;
   }

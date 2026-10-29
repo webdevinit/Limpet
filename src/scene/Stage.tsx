@@ -4,7 +4,7 @@
  * models are decoded; then the Limpet glides in.
  */
 import { lazy, Suspense, useCallback, useEffect, useRef, useState } from 'react';
-import { activeScene, textState, MAGNETS, noMagnet, type MagnetZone } from './choreography';
+import { activeScene, textState, MAGNETS, noMagnet, R, type MagnetZone } from './choreography';
 import { ScrollLock, pull, bump, pullMs, BUMP_MS, HOLD_MS, QUIET_MS, MAX_HOLD_MS } from './magnet';
 import { installAudioUnlock, playDock, soundEnabled, soundReady, setSoundEnabled, enableAndConfirm, onSoundChange, type Device } from './sound';
 import { hero, scenes, pricing, site } from '../content';
@@ -15,12 +15,31 @@ import { emptyHeroLayout, measureHeroLayout } from './heroLayout';
 const StageCanvas = lazy(() => import('./StageCanvas'));
 
 /**
- * The sequence follows the scroll position, but never faster than this (progress per second): a hard flick
- * still plays every move instead of jumping to the end. The full sequence takes at least 1 / MAX_SPEED s.
+ * The sequence follows the scroll position, but never faster than this (progress per second before the finale; the
+ * cap works on the scroll distance, so the finale, which has more scroll per unit of progress, is held back the same):
+ * a hard flick still plays every move instead of jumping to the end.
  */
 const MAX_SPEED = 0.2;
 /** below the cap the sequence eases towards the scroll position at this rate (1/s), so small scrolls stay smooth */
 const FOLLOW = 9;
+/**
+ * The finale (the Limpet turns, the pair forms) gets this much extra scroll room (vh) on top of its share of the
+ * track; everything before it keeps its scroll length. Keep in sync with the `.stage-track` heights in styles.css.
+ */
+const FINALE_EXTRA_VH = 100;
+/** scroll position on the track (0 … 1) to sequence progress, and back */
+function finaleKnee(rangePx: number, vh: number) {
+  const extra = Math.min(rangePx * 0.5, (FINALE_EXTRA_VH / 100) * vh);
+  return (R.final[0] * (rangePx - extra)) / rangePx;
+}
+function toSequence(raw: number, rangePx: number, vh: number) {
+  const k = finaleKnee(rangePx, vh), f = R.final[0];
+  return raw < k ? (raw / k) * f : f + ((raw - k) / (1 - k)) * (1 - f);
+}
+function toScroll(p: number, rangePx: number, vh: number) {
+  const k = finaleKnee(rangePx, vh), f = R.final[0];
+  return p < f ? (p / f) * k : k + ((p - f) / (1 - f)) * (1 - k);
+}
 /** `?nochase=1` lets the sequence jump straight to the scroll position (for checks and screenshots) */
 const NO_CHASE = typeof window !== 'undefined' && new URLSearchParams(window.location.search).has('nochase');
 
@@ -62,7 +81,10 @@ export function Stage({ caps, onLoaded, intro, invalidate }: { caps: Capabilitie
     /** in-page navigation (anchor links): follow the scroll directly, no magnets, no speed cap */
     let nav = { on: false, since: 0 };
     let lastScrollAt = 0;
-    const docY = (p: number) => el.getBoundingClientRect().top + window.scrollY + p * (el.offsetHeight - window.innerHeight);
+    const docY = (p: number) => {
+      const range = el.offsetHeight - window.innerHeight;
+      return el.getBoundingClientRect().top + window.scrollY + toScroll(p, range, window.innerHeight) * range;
+    };
 
     const endSnap = () => {
       if (!snap) return;
@@ -76,7 +98,7 @@ export function Stage({ caps, onLoaded, intro, invalidate }: { caps: Capabilitie
       raf = 0;
       const rect = el.getBoundingClientRect();
       const vh = window.innerHeight;
-      const target = Math.min(1, Math.max(0, -rect.top / (rect.height - vh)));
+      const target = toSequence(Math.min(1, Math.max(0, -rect.top / (rect.height - vh))), rect.height - vh, vh);
       const dt = lastT ? Math.min(0.1, (now - lastT) / 1000) : 1 / 60;
       lastT = now;
       // off screen (or on the first measure, e.g. a restored scroll position) there is nothing to watch: jump
@@ -106,10 +128,14 @@ export function Stage({ caps, onLoaded, intro, invalidate }: { caps: Capabilitie
         const prev = shown;
         if (shown < 0 || !visible || NO_CHASE || nav.on) shown = target;
         else {
-          const d = target - shown;
-          const step = Math.min(Math.abs(d), Math.max(Math.abs(d) * FOLLOW, 0.002) * dt, MAX_SPEED * dt);
-          shown += Math.sign(d) * step;
-          if (Math.abs(target - shown) < 1e-5) shown = target;
+          // chase in scroll space: the same scroll distance per second everywhere, finale included
+          const range = rect.height - vh;
+          const rs = toScroll(shown, range, vh), rt = toScroll(target, range, vh);
+          const cap = (MAX_SPEED * finaleKnee(range, vh)) / R.final[0];
+          const d = rt - rs;
+          const step = Math.min(Math.abs(d), Math.max(Math.abs(d) * FOLLOW, 0.002) * dt, cap * dt);
+          const next = rs + Math.sign(d) * step;
+          shown = Math.abs(rt - next) < 1e-5 ? target : toSequence(next, range, vh);
         }
         // magnets: arm once the pose is clearly away from the dock, snap when it comes back past the trigger
         const dir = Math.sign(shown - prev);
