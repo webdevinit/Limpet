@@ -111,7 +111,7 @@ function Motif({ which, onStatus }: { which: CardMotif; onStatus: (s: string) =>
       });
       mesh.material = Array.isArray(mesh.material) ? out : out[0];
     });
-    leatherFromImage('/images/leather-detail.jpg').then((maps) => {
+    leatherFromImage('/images/leather-detail.webp').then((maps) => {
       for (const m of leather) { m.map = maps.color; m.normalMap = maps.normal; m.roughnessMap = maps.rough; m.needsUpdate = true; }
       frames.current = 0;
       ready.current = true;

@@ -3,6 +3,7 @@
  * Lazy-loaded so the page shell renders before three.js arrives.
  */
 import { Suspense, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import type { GLTF } from 'three-stdlib';
 import { Canvas, useFrame, useThree } from '@react-three/fiber';
 import { useGLTF, Environment, Lightformer } from '@react-three/drei';
 import * as THREE from 'three';
@@ -41,10 +42,9 @@ export type StageProps = {
 const DRACO = '/draco/';
 const MODELS = { limpet: '/models/limpet.glb', macbook: '/models/macbook.glb', iphone: '/models/iphone.glb' };
 
+/** only the Limpet is fetched up front (the hero needs nothing else); MacBook and iPhone follow once it is up */
 export function preloadModels() {
   useGLTF.preload(MODELS.limpet, DRACO);
-  useGLTF.preload(MODELS.macbook, DRACO);
-  useGLTF.preload(MODELS.iphone, DRACO);
 }
 
 export default function StageCanvas(props: StageProps) {
@@ -212,10 +212,19 @@ function modelCorners(root: THREE.Object3D): THREE.Vector3[] {
   return c;
 }
 
-function Models({ progress, magnet, contact, facts, intro, heroLayout, layout, onReady }: StageProps) {
-  const limpet = useGLTF(MODELS.limpet, DRACO);
+type Devices = { macbook: GLTF; iphone: GLTF };
+
+/** MacBook and iPhone load after the Limpet is up (inside their own Suspense), so the loader only waits for the Limpet */
+function DeviceModels({ onLoaded }: { onLoaded: (d: Devices) => void }) {
   const macbook = useGLTF(MODELS.macbook, DRACO);
   const iphone = useGLTF(MODELS.iphone, DRACO);
+  useEffect(() => onLoaded({ macbook, iphone }), [macbook, iphone, onLoaded]);
+  return null;
+}
+
+function Models({ progress, magnet, contact, facts, intro, heroLayout, layout, onReady }: StageProps) {
+  const limpet = useGLTF(MODELS.limpet, DRACO);
+  const [devices, setDevices] = useState<Devices | null>(null);
 
   const limpetRef = useRef<THREE.Group>(null);
   const companionRef = useRef<THREE.Group>(null);
@@ -306,23 +315,10 @@ function Models({ progress, magnet, contact, facts, intro, heroLayout, layout, o
     walk(limpet.scene);
     walk(companion);
     sides.forEach((c) => walk(c));
-    walk(macbook.scene);
-    phoneMats.current = [];
-    walk(iphone.scene, phoneMats.current);
-    hinge.current = macbook.scene.getObjectByName('MacBook_Display_Hinge') ?? null;
-    hinge.current?.quaternion.copy(hingeQuaternion(cfg.lidDeg));
-    {
-      cableBend.current?.update(cfg.lidDeg); // back to the modelled shape before measuring it again
-      const cab = macbook.scene.getObjectByName('Cable_Flexible_Fabric') as THREE.Mesh | undefined;
-      const lidMesh = macbook.scene.getObjectByName('Display005');
-      const baseMesh = macbook.scene.getObjectByName('MacBook_BaseCover');
-      cableBend.current = cab?.isMesh && hinge.current && lidMesh && baseMesh ? new CableBend(cab, hinge.current, lidMesh, baseMesh, cfg.lidDeg) : null;
-      lastLid.current = cfg.lidDeg;
-    }
-    if (import.meta.env.DEV) (window as unknown as { __limpetScene?: unknown }).__limpetScene = { limpet: limpet.scene, macbook: macbook.scene, iphone: iphone.scene, camera, phone: phoneRef.current, limpetGroup: limpetRef.current };
+    if (import.meta.env.DEV) (window as unknown as { __limpetScene?: Record<string, unknown> }).__limpetScene = { ...((window as unknown as { __limpetScene?: Record<string, unknown> }).__limpetScene ?? {}), limpet: limpet.scene, camera, limpetGroup: limpetRef.current };
     // swap the procedural leather for the real grain from the handover render once it has loaded
     let cancelled = false;
-    leatherFromImage('/images/leather-detail.jpg').then((maps) => {
+    leatherFromImage('/images/leather-detail.webp').then((maps) => {
       if (cancelled) return;
       for (const m of leatherMats.current) {
         m.map = maps.color; m.normalMap = maps.normal; m.roughnessMap = maps.rough;
@@ -331,12 +327,40 @@ function Models({ progress, magnet, contact, facts, intro, heroLayout, layout, o
       invalidate();
     }).catch(() => {});
     return () => { cancelled = true; };
-  }, [limpet, macbook, iphone, cfg, tex, sides]);
+  }, [limpet, cfg, tex, sides]);
+
+  // the devices: tuned when they arrive (they share no materials with the Limpet)
+  useLayoutEffect(() => {
+    if (!devices) return;
+    const { macbook, iphone } = devices;
+    const seen = new Map<THREE.Material, THREE.Material>();
+    const walk = (root: THREE.Object3D, collect?: THREE.Material[]) =>
+      root.traverse((o) => {
+        const mesh = o as THREE.Mesh;
+        if (!mesh.isMesh) return;
+        const list = Array.isArray(mesh.material) ? mesh.material : [mesh.material];
+        const out = list.map((m) => { if (!seen.has(m)) seen.set(m, tuneMaterial(m, tex) ?? m); const final = seen.get(m)!; collect?.push(final); return final; });
+        mesh.material = Array.isArray(mesh.material) ? out : out[0];
+      });
+    walk(macbook.scene);
+    phoneMats.current = [];
+    walk(iphone.scene, phoneMats.current);
+    hinge.current = macbook.scene.getObjectByName('MacBook_Display_Hinge') ?? null;
+    hinge.current?.quaternion.copy(hingeQuaternion(cfg.lidDeg));
+    cableBend.current?.update(cfg.lidDeg); // back to the modelled shape before measuring it again
+    const cab = macbook.scene.getObjectByName('Cable_Flexible_Fabric') as THREE.Mesh | undefined;
+    const lidMesh = macbook.scene.getObjectByName('Display005');
+    const baseMesh = macbook.scene.getObjectByName('MacBook_BaseCover');
+    cableBend.current = cab?.isMesh && hinge.current && lidMesh && baseMesh ? new CableBend(cab, hinge.current, lidMesh, baseMesh, cfg.lidDeg) : null;
+    lastLid.current = cfg.lidDeg;
+    if (import.meta.env.DEV) (window as unknown as { __limpetScene?: Record<string, unknown> }).__limpetScene = { ...((window as unknown as { __limpetScene?: Record<string, unknown> }).__limpetScene ?? {}), macbook: macbook.scene, iphone: iphone.scene, phone: phoneRef.current };
+    invalidate();
+  }, [devices, cfg, tex, invalidate]);
 
   useLayoutEffect(() => {
     if (macInnerRef.current) { macInnerRef.current.matrixAutoUpdate = false; macInnerRef.current.matrix.copy(macStage); }
     if (phoneInnerRef.current) { phoneInnerRef.current.matrixAutoUpdate = false; phoneInnerRef.current.matrix.copy(phoneStage); }
-  }, [macStage, phoneStage]);
+  }, [macStage, phoneStage, devices]);
 
   // Report "ready" only after the first frames have actually been drawn (shaders compiled), so the loader
   // never reveals an empty stage.
@@ -541,19 +565,26 @@ function Models({ progress, magnet, contact, facts, intro, heroLayout, layout, o
       <group ref={companionRef} visible={false}>
         <primitive object={companion} />
       </group>
-      <group ref={macRef}>
-        <group ref={macInnerRef}>
-          <primitive object={macbook.scene} />
-        </group>
-        <primitive object={fx.mac.group} />
-      </group>
-      <group ref={phoneRef}>
-        <group ref={phoneInnerRef}>
-          <primitive object={iphone.scene} />
-          <Cable handleRef={cable} />
-        </group>
-        <primitive object={fx.phone.group} />
-      </group>
+      <Suspense fallback={null}>
+        <DeviceModels onLoaded={setDevices} />
+      </Suspense>
+      {devices && (
+        <>
+          <group ref={macRef}>
+            <group ref={macInnerRef}>
+              <primitive object={devices.macbook.scene} />
+            </group>
+            <primitive object={fx.mac.group} />
+          </group>
+          <group ref={phoneRef}>
+            <group ref={phoneInnerRef}>
+              <primitive object={devices.iphone.scene} />
+              <Cable handleRef={cable} />
+            </group>
+            <primitive object={fx.phone.group} />
+          </group>
+        </>
+      )}
     </>
   );
 }

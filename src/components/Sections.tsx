@@ -28,9 +28,12 @@ export function Craft({ reduced }: { reduced: boolean }) {
   useEffect(() => {
     const v = videoRef.current;
     if (!v) return;
+    // the file is not fetched with the page: it starts buffering once the section comes near, plays when visible
+    const near = new IntersectionObserver(([e]) => { if (e.isIntersecting) { v.preload = 'auto'; near.disconnect(); } }, { rootMargin: '60% 0px' });
     const io = new IntersectionObserver(([e]) => { if (e.isIntersecting) v.play().catch(() => {}); else v.pause(); }, { threshold: 0.05 });
+    near.observe(v);
     io.observe(v);
-    return () => io.disconnect();
+    return () => { near.disconnect(); io.disconnect(); };
   }, [reduced]);
   return (
     <section className="section surface" id="craft">
@@ -39,7 +42,7 @@ export function Craft({ reduced }: { reduced: boolean }) {
           {reduced ? (
             <img src="/video/macbook-cable-poster.webp" alt="Limpet docked on a closed MacBook, with the fabric cable running to the side port" width={1280} height={720} loading="lazy" />
           ) : (
-            <video ref={videoRef} muted loop playsInline preload="metadata" poster="/video/macbook-cable-poster.webp" width={1280} height={720}
+            <video ref={videoRef} muted loop playsInline preload="none" poster="/video/macbook-cable-poster.webp" width={1280} height={720}
               aria-label="Slow camera move around the Limpet docked on a closed MacBook">
               <source src="/video/macbook-cable.mp4" type="video/mp4" />
             </video>
@@ -89,17 +92,18 @@ export function Pricing() {
             <div className="option" key={pl.name}>
               <p className="name">{pl.name}</p>
               {/* what comes with it: Lite a check mark, Pro the laptop dock plate (rendered from the 3D scene: `?render=dock` in dev) */}
-              <p className="includes">
-                {pl.lineImage ? (
+              <div className="includes">
+                {pl.lineImage && (
                   <picture className="includes-dock">
                     <source srcSet="/images/card-dock.webp" type="image/webp" />
                     <img src="/images/card-dock.png" alt="" width={1024} height={1024} loading="lazy" decoding="async" />
                   </picture>
-                ) : (
-                  <svg className="includes-check" viewBox="0 0 20 20" aria-hidden="true" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M4 10.5l4 4 8-9" /></svg>
                 )}
-                <span>{pl.line}</span>
-              </p>
+                <p className="includes-line">
+                  <svg className="includes-check" viewBox="0 0 20 20" aria-hidden="true" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><path d="M4 10.5l4 4 8-9" /></svg>
+                  <span>{pl.line}</span>
+                </p>
+              </div>
               <p className="caps">{pl.capacities.join(' · ')}</p>
               <p className="price"><span className="from">From</span><b>{pricing.currency}{pl.launchPriceFrom}</b></p>
               <p className="batch-label">{pricing.batchLabel}</p>

@@ -16,7 +16,7 @@ function renderSink(): Plugin {
     configureServer(server) {
       server.middlewares.use('/__render', (req, res) => {
         const name = path.basename(req.url ?? '');
-        if (req.method !== 'POST' || !/^card-dock\.(png|webp)$/.test(name)) { res.statusCode = 400; res.end('bad request'); return; }
+        if (req.method !== 'POST' || !/^(card-dock\.(png|webp)|leather-detail\.webp)$/.test(name)) { res.statusCode = 400; res.end('bad request'); return; }
         const chunks: Buffer[] = [];
         req.on('data', (c: Buffer) => chunks.push(c));
         req.on('end', () => { fs.writeFileSync(path.join(dir, name), Buffer.concat(chunks)); res.end('ok'); });
